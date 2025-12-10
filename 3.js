@@ -33,6 +33,7 @@ const alignmentEl = document.getElementById('alignment');
 const alignmentValEl = document.getElementById('alignmentVal');
 const cooldownEl = document.getElementById('cooldown');
 const cooldownValEl = document.getElementById('cooldownVal');
+const resetBtn = document.getElementById('resetSettings');
 
 function initSettingsUI() {
     // If the elements are missing (older HTML), skip quietly
@@ -74,6 +75,29 @@ function initSettingsUI() {
 
 // initialize (if panel exists)
 initSettingsUI();
+
+// Reset settings to sensible defaults and update UI/localStorage
+function resetSettingsToDefaults() {
+    const defaults = { movementThreshold: 2.5, requireDotThreshold: 0.2, globalCooldown: 220 };
+    settings = Object.assign({}, defaults);
+    try { localStorage.setItem('movementThreshold', String(settings.movementThreshold)); } catch (e) {}
+    try { localStorage.setItem('requireDotThreshold', String(settings.requireDotThreshold)); } catch (e) {}
+    try { localStorage.setItem('globalCooldown', String(settings.globalCooldown)); } catch (e) {}
+    // Update UI elements if present
+    if (sensitivityEl) { sensitivityEl.value = settings.movementThreshold; sensitivityValEl.textContent = settings.movementThreshold; }
+    if (alignmentEl) { alignmentEl.value = settings.requireDotThreshold; alignmentValEl.textContent = settings.requireDotThreshold; }
+    if (cooldownEl) { cooldownEl.value = settings.globalCooldown; cooldownValEl.textContent = settings.globalCooldown; }
+}
+
+if (resetBtn) {
+    resetBtn.addEventListener('click', (e) => {
+        resetSettingsToDefaults();
+        // a small visual feedback: briefly change button text
+        const old = resetBtn.textContent;
+        resetBtn.textContent = 'Reset ✓';
+        setTimeout(() => { try { resetBtn.textContent = old; } catch (e) {} }, 900);
+    });
+}
 
 // Play jelly chime safely by cloning the audio element so multiple sounds can overlap.
 function playJellySfx() {

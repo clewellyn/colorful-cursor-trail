@@ -49,6 +49,7 @@ body {
 .slider-row input[type=range] { flex: 1; }
 .slider-row span { width:44px; text-align:right; font-size:12px; color:#d0d9ff; }
 .settings-panel .muted { display:block; margin-top:6px; opacity:0.8; color:#b8c2dd; }
+.retro-button.small { padding:6px 10px; font-size:12px; border-radius:6px; }
     border-radius: 20px;
     border: 2px solid #00ff00;
 }

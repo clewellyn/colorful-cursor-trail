@@ -30,7 +30,11 @@
                 <input id="cooldown" type="range" min="0" max="1200" step="10">
                 <span id="cooldownVal"></span>
             </div>
-            <small class="muted">Values persist in your browser. Tweak to reduce accidental chimes.</small>
+            <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+                <button id="resetSettings" class="retro-button small">Reset to defaults</button>
+                <small class="muted">Values persist in your browser. Tweak to reduce accidental chimes.</small>
+            </div>
+            <div style="margin-top:6px; font-size:12px; color:#cfd8ff;">Tip: raise Sensitivity or Cooldown to avoid accidental chimes. Alignment controls how directly you must move toward a jelly.</div>
         </div>
     <audio id="bgMusic" loop>
         <source src="music.mp3" type="audio/mp3">
