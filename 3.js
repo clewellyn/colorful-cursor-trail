@@ -13,8 +13,110 @@ let jellyEnabled = true;
 // global speed factor for jellyfish (gradually increases)
 let speedFactor = 1;
 
+// Configurable parameters
+const movementThreshold = 2.5; // pixels — require this movement to consider touch
+const requireDotThreshold = 0.2; // require normalized dot product > this to consider movement toward jelly
+const speedRampPerFrame = 0.00005; // how much speedFactor increases each frame
+const maxJelly = 12; // maximum simultaneous jellyfish
+
 // Jellyfish hit sound element
 const jellySfx = document.getElementById('jellySfx');
+
+class Particle {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.size = Math.random() * 5 + 2;
+        this.speedX = Math.random() * 2 - 1;
+        this.speedY = Math.random() * 2 - 1;
+        this.color = `hsl(${Math.random() * 360}, 100%, 50%)`;
+    }
+
+    update() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+        if (this.size > 0.2) this.size -= 0.1;
+    }
+
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+let particles = [];
+let mouse = { x: null, y: null };
+let prevMouse = { x: null, y: null };
+
+// hint tooltip (show once)
+const hint = document.getElementById('hint');
+if (hint && !localStorage.getItem('seenHint')) {
+    setTimeout(() => {
+        hint.classList.add('show');
+        setTimeout(() => {
+            hint.classList.remove('show');
+            try { localStorage.setItem('seenHint', '1'); } catch (e) {}
+        }, 3500);
+    }, 600);
+}
+
+// Track mouse movement: draw particles and trigger jelly hit when user moves into one
+canvas.addEventListener('mousemove', (event) => {
+    prevMouse.x = mouse.x;
+    prevMouse.y = mouse.y;
+    mouse.x = event.clientX;
+    mouse.y = event.clientY;
+
+    // cursor trail
+    for (let i = 0; i < 5; i++) particles.push(new Particle(mouse.x, mouse.y));
+
+    // if the mouse actually moved enough, check for jelly overlap and trigger chime
+    if (prevMouse.x !== null && prevMouse.y !== null) {
+        const dx = mouse.x - prevMouse.x;
+        const dy = mouse.y - prevMouse.y;
+        const moved = Math.sqrt(dx * dx + dy * dy);
+        if (moved >= movementThreshold && jellyEnabled) {
+            // normalized movement vector
+            const mvx = dx / moved;
+            const mvy = dy / moved;
+            for (let i = 0; i < jellyfish.length; i++) {
+                const j = jellyfish[i];
+                if (j.disappearing) continue;
+                const cx = j.x;
+                const cy = j.y;
+                const ddx = cx - mouse.x;
+                const ddy = cy - mouse.y;
+                const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+                if (dist < j.size * 0.9) {
+                    // directional check: movement should be (at least somewhat) towards jellyfish
+                    const toJellyX = ddx / (dist || 1);
+                    const toJellyY = ddy / (dist || 1);
+                    const dot = mvx * toJellyX + mvy * toJellyY; // 1 = directly toward, -1 away
+                    if (dot >= requireDotThreshold) {
+                        j.disappearing = true;
+                        j.hit = true;
+                        playJellySfx();
+                        for (let p = 0; p < 18; p++) {
+                            const part = new Particle(j.x, j.y);
+                            part.color = j.color.replace(/hsla\(/, 'hsl(').replace(/,\s*0.9\)/, ')');
+                            part.size = Math.random() * 4 + 2;
+                            const angle = Math.random() * Math.PI * 2;
+                            const speed = 1 + Math.random() * 3;
+                            part.speedX = Math.cos(angle) * speed;
+                            part.speedY = Math.sin(angle) * speed;
+                            particles.push(part);
+                        }
+                        break; // only trigger one jelly per movement
+                    }
+                }
+            }
+        }
+    }
+});
+
+// Jellyfish class
 class Jellyfish {
     constructor(side = 'left') {
         this.size = 30 + Math.random() * 40; // body radius
@@ -79,9 +181,37 @@ class Jellyfish {
 
     draw() {
         ctx.save();
+        // hover glow if cursor nearby
+        const dx = (mouse.x || -9999) - this.x;
+        const dy = (mouse.y || -9999) - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const hover = dist < this.size * 1.1;
+        // hover strength 0..1 (closer = stronger)
+        const hoverStrength = hover ? Math.max(0, 1 - dist / (this.size * 1.1)) : 0;
+        // pulsing factor based on internal phase
+        const pulse = 0.6 + 0.4 * Math.sin(this.phase * 3);
+
+        if (hover && !this.disappearing) {
+            ctx.shadowBlur = 30 * hoverStrength * pulse;
+            ctx.shadowColor = `rgba(255,255,255,${0.35 * hoverStrength})`;
+        } else {
+            ctx.shadowBlur = 0;
+        }
         // apply per-jellyfish alpha
         ctx.globalAlpha = this.alpha;
         ctx.translate(this.x, this.y);
+
+        // subtle halo when hovered
+        if (hover && !this.disappearing) {
+            const haloR = this.size * (1.6 + 0.4 * pulse);
+            const halo = ctx.createRadialGradient(0, 0, this.size * 0.2, 0, 0, haloR);
+            halo.addColorStop(0, `rgba(255,255,255,${0.08 * hoverStrength})`);
+            halo.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = halo;
+            ctx.beginPath();
+            ctx.arc(0, 0, haloR, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         // draw bell (body)
         const grd = ctx.createRadialGradient(0, -this.size * 0.2, this.size * 0.1, 0, 0, this.size);
@@ -92,6 +222,16 @@ class Jellyfish {
         ctx.ellipse(0, 0, this.size * 1.1, this.size * 0.8, 0, 0, Math.PI * 2);
         ctx.fill();
 
+        // stronger pulsing outline when hovered
+        if (hover && !this.disappearing) {
+            const outlineAlpha = 0.35 * hoverStrength * pulse;
+            ctx.lineWidth = Math.max(1, this.size * 0.08 * (0.8 + 0.4 * pulse));
+            ctx.strokeStyle = `rgba(255,255,255,${outlineAlpha})`;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, this.size * 1.25, this.size * 0.95, 0, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
         // tentacles
         for (let t = 0; t < this.tentacles; t++) {
             const angle = (t / (this.tentacles - 1 || 1) - 0.5) * Math.PI * 0.8; // spread
@@ -99,7 +239,6 @@ class Jellyfish {
             const sway = Math.sin(this.phase * (0.8 + t * 0.1) + t) * 8;
             ctx.beginPath();
             ctx.moveTo(Math.cos(angle) * this.size * 0.6, Math.sin(angle) * this.size * 0.5 + this.size * 0.3);
-            // use two bezier segments to make a smooth tentacle
             ctx.bezierCurveTo(
                 Math.cos(angle) * this.size * 0.6 + sway * 0.2,
                 this.size * 0.6 + sway * 0.3,
@@ -115,8 +254,9 @@ class Jellyfish {
         }
 
         ctx.restore();
-        // restore alpha (in case other drawing expects full alpha)
+        // restore alpha and shadow
         ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
     }
 
     isOffScreen() {
@@ -129,6 +269,7 @@ class Jellyfish {
         );
     }
 }
+
 let jellyfish = [];
 let spawnTimer = 0;
 const spawnInterval = 240; // in frames (~4s at 60fps)
@@ -136,7 +277,7 @@ const spawnInterval = 240; // in frames (~4s at 60fps)
 function spawnJelly() {
     const sides = ['left', 'right', 'top', 'bottom'];
     const side = sides[Math.floor(Math.random() * sides.length)];
-    if (jellyfish.length < 12) jellyfish.push(new Jellyfish(side));
+    if (jellyfish.length < maxJelly) jellyfish.push(new Jellyfish(side));
 }
 
 // initial jellyfish
@@ -146,7 +287,7 @@ if (jellyEnabled) {
 
 function animate() {
     // slowly increase global speed factor
-    speedFactor += 0.00002;
+    speedFactor += speedRampPerFrame;
 
     // translucent background for trailing effect
     ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
