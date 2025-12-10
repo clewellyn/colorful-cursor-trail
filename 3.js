@@ -105,41 +105,42 @@ class Particle {
 
 let particles = [];
 let mouse = { x: null, y: null };
-let lastMouseMove = 0;
 
 // Track mouse movement
 canvas.addEventListener('mousemove', (event) => {
-    // record previous mouse for potential future logic
-    const prev = { x: mouse.x, y: mouse.y };
-    mouse.x = event.x;
-    mouse.y = event.y;
-    lastMouseMove = Date.now();
+    // update mouse position for particle trail only
+    mouse.x = event.clientX;
+    mouse.y = event.clientY;
     for (let i = 0; i < 5; i++) particles.push(new Particle(mouse.x, mouse.y));
+});
 
-    // Only trigger jelly hits on an explicit mousemove (user-driven)
-    if (jellyEnabled) {
-        for (let i = 0; i < jellyfish.length; i++) {
-            const j = jellyfish[i];
-            if (j.disappearing) continue;
-            const dx = j.x - mouse.x;
-            const dy = j.y - mouse.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < j.size * 0.9) {
-                // mark disappearing and play effects
-                j.disappearing = true;
-                j.hit = true;
-                playJellySfx();
-                for (let p = 0; p < 18; p++) {
-                    const part = new Particle(j.x, j.y);
-                    part.color = j.color.replace(/hsla\(/, 'hsl(').replace(/,\s*0.9\)/, ')');
-                    part.size = Math.random() * 4 + 2;
-                    const angle = Math.random() * Math.PI * 2;
-                    const speed = 1 + Math.random() * 3;
-                    part.speedX = Math.cos(angle) * speed;
-                    part.speedY = Math.sin(angle) * speed;
-                    particles.push(part);
-                }
+// Only trigger jelly hit on click (user intent)
+canvas.addEventListener('click', (event) => {
+    if (!jellyEnabled) return;
+    const x = event.clientX;
+    const y = event.clientY;
+    // check all jellyfish; stop after first successful hit
+    for (let i = 0; i < jellyfish.length; i++) {
+        const j = jellyfish[i];
+        if (j.disappearing) continue;
+        const dx = j.x - x;
+        const dy = j.y - y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < j.size * 0.9) {
+            j.disappearing = true;
+            j.hit = true;
+            playJellySfx();
+            for (let p = 0; p < 18; p++) {
+                const part = new Particle(j.x, j.y);
+                part.color = j.color.replace(/hsla\(/, 'hsl(').replace(/,\s*0.9\)/, ')');
+                part.size = Math.random() * 4 + 2;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 1 + Math.random() * 3;
+                part.speedX = Math.cos(angle) * speed;
+                part.speedY = Math.sin(angle) * speed;
+                particles.push(part);
             }
+            break;
         }
     }
 });
