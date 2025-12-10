@@ -17,9 +17,21 @@ function playJellySfx() {
     if (!jellySfx) return;
     // Clone the element so multiple hits can overlap
     try {
-        const s = jellySfx.cloneNode();
+        // cloneNode(true) to copy <source> children as well
+        const s = jellySfx.cloneNode(true);
         s.volume = volumeSlider ? Number(volumeSlider.value) : 0.5;
-        s.play().catch(() => {});
+        // slight random pitch so repeated hits feel organic
+        s.playbackRate = 0.92 + Math.random() * 0.16;
+        s.currentTime = 0;
+        // append so some browsers can load/play cloned element
+        document.body.appendChild(s);
+        const playPromise = s.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+            playPromise.catch(() => {
+                try { s.remove(); } catch (_) {}
+            });
+        }
+        s.onended = () => { try { s.remove(); } catch (_) {} };
     } catch (e) {
         // fallback: try playing the original
         try { jellySfx.currentTime = 0; jellySfx.play().catch(()=>{}); } catch (_) {}
