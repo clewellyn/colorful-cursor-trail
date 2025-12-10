@@ -26,6 +26,9 @@ const maxJelly = 12; // maximum simultaneous jellyfish
 // Jellyfish hit sound element
 const jellySfx = document.getElementById('jellySfx');
 
+// id counter for debug/logging
+let _jellyIdCounter = 1;
+
 // Settings UI elements (initialized below) - optional if panel not present
 const sensitivityEl = document.getElementById('sensitivity');
 const sensitivityValEl = document.getElementById('sensitivityVal');
@@ -248,6 +251,11 @@ canvas.addEventListener('mousemove', (event) => {
                 const bodyR = Math.max(bw, bh);
                 // require the cursor be fairly well inside the jelly body
                 if (dist < bodyR * 0.8) {
+                    // compute previous distance to require an entering motion (prevents chimes when already inside)
+                    const prevDx = j.x - (prevMouse.x || mouse.x);
+                    const prevDy = j.y - (prevMouse.y || mouse.y);
+                    const prevDist = Math.sqrt(prevDx * prevDx + prevDy * prevDy);
+
                     // directional check: movement should be (at least somewhat) towards jellyfish
                     const toJellyX = ddx / (dist || 1);
                     const toJellyY = ddy / (dist || 1);
@@ -255,7 +263,15 @@ canvas.addEventListener('mousemove', (event) => {
                     const now = Date.now();
                     const perJellyCooldown = 500; // ms (keep a reasonable minimum per-jelly cooldown)
                     const globalCooldown = settings.globalCooldown; // ms (user-tunable)
-                    if (dot >= settings.requireDotThreshold && (now - j.lastHit) > perJellyCooldown && (now - lastSfxTime) > globalCooldown) {
+
+                    // require that the cursor was outside (or sufficiently away) in the previous sample
+                    const enteringRequired = prevDist > bodyR * 0.95;
+
+                    if (enteringRequired && dot >= settings.requireDotThreshold && (now - j.lastHit) > perJellyCooldown && (now - lastSfxTime) > globalCooldown) {
+                        // diagnostic log to help tune thresholds if needed
+                        try {
+                            console.log('[chime] jelly=', j.id, 'dist=', Math.round(dist), 'prevDist=', Math.round(prevDist), 'moved=', Math.round(moved), 'dot=', dot.toFixed(2), 'thresholds=', {movementThreshold: settings.movementThreshold, requireDotThreshold: settings.requireDotThreshold, globalCooldown: settings.globalCooldown}, 'nowDiff=', now - lastSfxTime);
+                        } catch (e) {}
                         j.disappearing = true;
                         j.hit = true;
                         j.lastHit = now;
@@ -328,6 +344,7 @@ class Jellyfish {
         this.tentacleLengthFactor = 0.9 + Math.random() * 1.4; // 0.9..2.3
 
         this.side = side;
+            this.id = _jellyIdCounter++;
         this.phase = Math.random() * Math.PI * 2;
         this.baseSpeed = 0.18 + Math.random() * 0.6; // base movement speed
         // direction vector
