@@ -205,6 +205,10 @@ let mouse = { x: null, y: null };
 let prevMouse = { x: null, y: null };
 // global cooldown to avoid many chimes in quick succession
 let lastSfxTime = 0;
+// pause/resume controls
+let paused = false;
+let rafId = null;
+let _wasMusicPlaying = false;
 
 // hint tooltip (show once)
 const hint = document.getElementById('hint');
@@ -220,6 +224,7 @@ if (hint && !localStorage.getItem('seenHint')) {
 
 // Track mouse movement: draw particles and trigger jelly hit when user moves into one
 canvas.addEventListener('mousemove', (event) => {
+    if (paused) return; // ignore input while paused
     prevMouse.x = mouse.x;
     prevMouse.y = mouse.y;
     mouse.x = event.clientX;
@@ -640,7 +645,36 @@ function animate() {
         }
     }
 
-    requestAnimationFrame(animate);
+    rafId = requestAnimationFrame(animate);
 }
 
 animate();
+
+// Pause / Resume button wiring
+const pauseBtn = document.getElementById('pauseBtn');
+function setPaused(p) {
+    if (p === paused) return;
+    paused = !!p;
+    if (paused) {
+        // stop the animation loop
+        if (rafId) try { cancelAnimationFrame(rafId); } catch (e) {}
+        rafId = null;
+        // pause music if playing
+        try {
+            if (bgMusic && !bgMusic.paused) { _wasMusicPlaying = true; bgMusic.pause(); } else { _wasMusicPlaying = false; }
+        } catch (e) {}
+        if (pauseBtn) pauseBtn.textContent = '▶ Resume';
+    } else {
+        // resume
+        if (_wasMusicPlaying) try { bgMusic.play().catch(()=>{}); } catch (e) {}
+        // restart animation
+        rafId = requestAnimationFrame(animate);
+        if (pauseBtn) pauseBtn.textContent = '⏸️ Pause';
+    }
+}
+
+if (pauseBtn) {
+    pauseBtn.addEventListener('click', () => {
+        setPaused(!paused);
+    });
+}
