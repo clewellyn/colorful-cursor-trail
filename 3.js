@@ -22,13 +22,47 @@ const maxJelly = 12; // maximum simultaneous jellyfish
 // Jellyfish hit sound element
 const jellySfx = document.getElementById('jellySfx');
 
+// Play jelly chime safely by cloning the audio element so multiple sounds can overlap.
+function playJellySfx() {
+    if (!jellySfx) return;
+    try {
+        const s = jellySfx.cloneNode(true);
+        s.volume = volumeSlider ? Number(volumeSlider.value) : 0.5;
+        s.playbackRate = 0.92 + Math.random() * 0.16;
+        s.currentTime = 0;
+        document.body.appendChild(s);
+        const p = s.play();
+        if (p && typeof p.catch === 'function') {
+            p.catch(() => { try { s.remove(); } catch (_) {} });
+        }
+        s.onended = () => { try { s.remove(); } catch (_) {} };
+    } catch (e) {
+        try { jellySfx.currentTime = 0; jellySfx.play().catch(()=>{}); } catch (_) {}
+    }
+}
+
+// HiDPI canvas setup (keeps drawings crisp on Retina / high-DPI screens)
+function resizeCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
 class Particle {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.size = Math.random() * 5 + 2;
-        this.speedX = Math.random() * 2 - 1;
-        this.speedY = Math.random() * 2 - 1;
+        // smaller particles so the trail looks smoother on high-DPI screens
+        this.size = Math.random() * 3 + 1;
+        this.speedX = (Math.random() * 1.6 - 0.8);
+        this.speedY = (Math.random() * 1.6 - 0.8);
         this.color = `hsl(${Math.random() * 360}, 100%, 50%)`;
     }
 
@@ -69,8 +103,8 @@ canvas.addEventListener('mousemove', (event) => {
     mouse.x = event.clientX;
     mouse.y = event.clientY;
 
-    // cursor trail
-    for (let i = 0; i < 5; i++) particles.push(new Particle(mouse.x, mouse.y));
+    // cursor trail (reduced particles for smoother rendering)
+    for (let i = 0; i < 3; i++) particles.push(new Particle(mouse.x, mouse.y));
 
     // if the mouse actually moved enough, check for jelly overlap and trigger chime
     if (prevMouse.x !== null && prevMouse.y !== null) {
@@ -101,7 +135,7 @@ canvas.addEventListener('mousemove', (event) => {
                         for (let p = 0; p < 18; p++) {
                             const part = new Particle(j.x, j.y);
                             part.color = j.color.replace(/hsla\(/, 'hsl(').replace(/,\s*0.9\)/, ')');
-                            part.size = Math.random() * 4 + 2;
+                            part.size = Math.random() * 3 + 1;
                             const angle = Math.random() * Math.PI * 2;
                             const speed = 1 + Math.random() * 3;
                             part.speedX = Math.cos(angle) * speed;
@@ -116,10 +150,46 @@ canvas.addEventListener('mousemove', (event) => {
     }
 });
 
+// Try to unlock audio on first user gesture — browsers block audio until a gesture occurs.
+let audioUnlocked = false;
+function unlockAudio() {
+    if (audioUnlocked) return;
+    audioUnlocked = true;
+    try {
+        if (window.AudioContext || window.webkitAudioContext) {
+            const ac = new (window.AudioContext || window.webkitAudioContext)();
+            ac.resume().catch(()=>{});
+        }
+    } catch (e) {}
+    try {
+        if (bgMusic && bgMusic.paused) {
+            const p = bgMusic.play();
+            if (p && typeof p.then === 'function') p.then(()=>{ bgMusic.pause(); bgMusic.currentTime = 0; }).catch(()=>{});
+        }
+    } catch (e) {}
+}
+document.addEventListener('pointerdown', unlockAudio, { once: true, capture: true });
+
+// Music controls wiring
+if (toggleMusic) toggleMusic.addEventListener('click', () => {
+    try {
+        if (bgMusic.paused) {
+            bgMusic.play().catch(()=>{});
+            toggleMusic.textContent = '🔇 Mute Music';
+        } else {
+            bgMusic.pause();
+            toggleMusic.textContent = '🎵 Play Music';
+        }
+    } catch (e) {}
+});
+
+if (volumeSlider) volumeSlider.addEventListener('input', (e) => { try { bgMusic.volume = Number(e.target.value); } catch (e) {} });
+
 // Jellyfish class
 class Jellyfish {
     constructor(side = 'left') {
-        this.size = 30 + Math.random() * 40; // body radius
+    // smaller default sizes so they appear reasonable on most screens
+    this.size = 14 + Math.random() * 22; // body radius (14..36)
         this.side = side;
         this.phase = Math.random() * Math.PI * 2;
         this.baseSpeed = 0.3 + Math.random() * 0.6; // base movement speed
@@ -129,22 +199,22 @@ class Jellyfish {
         // initial position depending on entry side
         if (side === 'left') {
             this.x = -this.size - Math.random() * 100;
-            this.y = Math.random() * (canvas.height * 0.8) + canvas.height * 0.1;
+            this.y = Math.random() * (canvas.clientHeight * 0.8) + canvas.clientHeight * 0.1;
             this.dirX = 1;
             this.dirY = (Math.random() - 0.5) * 0.4;
         } else if (side === 'right') {
-            this.x = canvas.width + this.size + Math.random() * 100;
-            this.y = Math.random() * (canvas.height * 0.8) + canvas.height * 0.1;
+            this.x = canvas.clientWidth + this.size + Math.random() * 100;
+            this.y = Math.random() * (canvas.clientHeight * 0.8) + canvas.clientHeight * 0.1;
             this.dirX = -1;
             this.dirY = (Math.random() - 0.5) * 0.4;
         } else if (side === 'top') {
             this.y = -this.size - Math.random() * 100;
-            this.x = Math.random() * (canvas.width * 0.8) + canvas.width * 0.1;
+            this.x = Math.random() * (canvas.clientWidth * 0.8) + canvas.clientWidth * 0.1;
             this.dirY = 1;
             this.dirX = (Math.random() - 0.5) * 0.4;
         } else { // bottom
-            this.y = canvas.height + this.size + Math.random() * 100;
-            this.x = Math.random() * (canvas.width * 0.8) + canvas.width * 0.1;
+            this.y = canvas.clientHeight + this.size + Math.random() * 100;
+            this.x = Math.random() * (canvas.clientWidth * 0.8) + canvas.clientWidth * 0.1;
             this.dirY = -1;
             this.dirX = (Math.random() - 0.5) * 0.4;
         }
@@ -262,9 +332,9 @@ class Jellyfish {
     isOffScreen() {
         return (
             this.x < -this.size - 200 ||
-            this.x > canvas.width + this.size + 200 ||
+            this.x > canvas.clientWidth + this.size + 200 ||
             this.y < -this.size - 200 ||
-            this.y > canvas.height + this.size + 200 ||
+            this.y > canvas.clientHeight + this.size + 200 ||
             this.age > this.maxAge
         );
     }
@@ -289,9 +359,9 @@ function animate() {
     // slowly increase global speed factor
     speedFactor += speedRampPerFrame;
 
-    // translucent background for trailing effect
+    // translucent background for trailing effect (use CSS pixel dims so fill covers visible canvas)
     ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
 
     // update and draw jellyfish behind particles (if enabled)
     if (jellyEnabled) {
