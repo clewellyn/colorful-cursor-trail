@@ -228,68 +228,69 @@ canvas.addEventListener('mousemove', (event) => {
     // cursor trail (reduced particles for smoother rendering)
     for (let i = 0; i < 3; i++) particles.push(new Particle(mouse.x, mouse.y));
 
-    // if the mouse actually moved enough, check for jelly overlap and trigger chime
-    if (prevMouse.x !== null && prevMouse.y !== null) {
+    // if we have a previous mouse sample, check jelly overlap and trigger chime when appropriate
+    if (prevMouse.x !== null && prevMouse.y !== null && jellyEnabled) {
         const dx = mouse.x - prevMouse.x;
         const dy = mouse.y - prevMouse.y;
         const moved = Math.sqrt(dx * dx + dy * dy);
-    if (moved >= settings.movementThreshold && jellyEnabled) {
-            // normalized movement vector
-            const mvx = dx / moved;
-            const mvy = dy / moved;
-            for (let i = 0; i < jellyfish.length; i++) {
-                const j = jellyfish[i];
-                if (j.disappearing) continue;
-                const cx = j.x;
-                const cy = j.y;
-                const ddx = cx - mouse.x;
-                const ddy = cy - mouse.y;
-                const dist = Math.sqrt(ddx * ddx + ddy * ddy);
-                // use jelly body radius (accounts for width/height variation)
-                const bw = j.size * (j.wFactor || 1);
-                const bh = j.size * (j.hFactor || 1);
-                const bodyR = Math.max(bw, bh);
-                // require the cursor be fairly well inside the jelly body
-                if (dist < bodyR * 0.8) {
-                    // compute previous distance to require an entering motion (prevents chimes when already inside)
-                    const prevDx = j.x - (prevMouse.x || mouse.x);
-                    const prevDy = j.y - (prevMouse.y || mouse.y);
-                    const prevDist = Math.sqrt(prevDx * prevDx + prevDy * prevDy);
+        // normalized movement vector (guard against zero moved below)
+        const mvx = moved ? dx / moved : 0;
+        const mvy = moved ? dy / moved : 0;
 
-                    // directional check: movement should be (at least somewhat) towards jellyfish
-                    const toJellyX = ddx / (dist || 1);
-                    const toJellyY = ddy / (dist || 1);
-                    const dot = mvx * toJellyX + mvy * toJellyY; // 1 = directly toward, -1 away
-                    const now = Date.now();
-                    const perJellyCooldown = 500; // ms (keep a reasonable minimum per-jelly cooldown)
-                    const globalCooldown = settings.globalCooldown; // ms (user-tunable)
+        for (let i = 0; i < jellyfish.length; i++) {
+            const j = jellyfish[i];
+            if (j.disappearing) continue;
+            const cx = j.x;
+            const cy = j.y;
+            const ddx = cx - mouse.x;
+            const ddy = cy - mouse.y;
+            const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+            // use jelly body radius (accounts for width/height variation)
+            const bw = j.size * (j.wFactor || 1);
+            const bh = j.size * (j.hFactor || 1);
+            const bodyR = Math.max(bw, bh);
 
-                    // require that the cursor was outside (or sufficiently away) in the previous sample
-                    const enteringRequired = prevDist > bodyR * 0.95;
+            // compute previous distance to detect an entering motion
+            const prevDx = j.x - (prevMouse.x || mouse.x);
+            const prevDy = j.y - (prevMouse.y || mouse.y);
+            const prevDist = Math.sqrt(prevDx * prevDx + prevDy * prevDy);
+            const enteringRequired = prevDist > bodyR * 0.95 && dist < bodyR * 0.8;
 
-                    if (enteringRequired && dot >= settings.requireDotThreshold && (now - j.lastHit) > perJellyCooldown && (now - lastSfxTime) > globalCooldown) {
-                        // diagnostic log to help tune thresholds if needed
-                        try {
-                            console.log('[chime] jelly=', j.id, 'dist=', Math.round(dist), 'prevDist=', Math.round(prevDist), 'moved=', Math.round(moved), 'dot=', dot.toFixed(2), 'thresholds=', {movementThreshold: settings.movementThreshold, requireDotThreshold: settings.requireDotThreshold, globalCooldown: settings.globalCooldown}, 'nowDiff=', now - lastSfxTime);
-                        } catch (e) {}
-                        j.disappearing = true;
-                        j.hit = true;
-                        j.lastHit = now;
-                        lastSfxTime = now;
-                        playJellySfx();
-                        for (let p = 0; p < 14; p++) {
-                            const part = new Particle(j.x, j.y);
-                            part.color = j.color.replace(/hsla\(/, 'hsl(').replace(/,\s*0.9\)/, ')');
-                            part.size = Math.random() * 2.4 + 0.8;
-                            const angle = Math.random() * Math.PI * 2;
-                            const speed = 0.8 + Math.random() * 2.6;
-                            part.speedX = Math.cos(angle) * speed;
-                            part.speedY = Math.sin(angle) * speed;
-                            particles.push(part);
-                        }
-                        break; // only trigger one jelly per movement
-                    }
+            // only proceed if movement was large enough OR we detected an entering crossing
+            if (!(moved >= settings.movementThreshold || enteringRequired)) continue;
+
+            // directional check: when entering, we allow direction to be ignored; otherwise require dot threshold
+            const toJellyX = ddx / (dist || 1);
+            const toJellyY = ddy / (dist || 1);
+            const dot = mvx * toJellyX + mvy * toJellyY; // 1 = directly toward, -1 away
+
+            const now = Date.now();
+            const perJellyCooldown = 500; // ms (keep a reasonable minimum per-jelly cooldown)
+            const globalCooldown = settings.globalCooldown; // ms (user-tunable)
+
+            const directionOk = enteringRequired ? true : (dot >= settings.requireDotThreshold);
+
+            if (dist < bodyR * 0.8 && directionOk && (now - j.lastHit) > perJellyCooldown && (now - lastSfxTime) > globalCooldown) {
+                // diagnostic log to help tune thresholds if needed
+                try {
+                    console.log('[chime] jelly=', j.id, 'dist=', Math.round(dist), 'prevDist=', Math.round(prevDist), 'moved=', Math.round(moved), 'dot=', dot.toFixed(2), 'entering=', enteringRequired, 'thresholds=', {movementThreshold: settings.movementThreshold, requireDotThreshold: settings.requireDotThreshold, globalCooldown: settings.globalCooldown}, 'nowDiff=', now - lastSfxTime);
+                } catch (e) {}
+                j.disappearing = true;
+                j.hit = true;
+                j.lastHit = now;
+                lastSfxTime = now;
+                playJellySfx();
+                for (let p = 0; p < 14; p++) {
+                    const part = new Particle(j.x, j.y);
+                    part.color = j.color.replace(/hsla\(/, 'hsl(').replace(/,\s*0.9\)/, ')');
+                    part.size = Math.random() * 2.4 + 0.8;
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 0.8 + Math.random() * 2.6;
+                    part.speedX = Math.cos(angle) * speed;
+                    part.speedY = Math.sin(angle) * speed;
+                    particles.push(part);
                 }
+                break; // only trigger one jelly per movement
             }
         }
     }
