@@ -14,13 +14,66 @@ let jellyEnabled = true;
 let speedFactor = 1;
 
 // Configurable parameters
-const movementThreshold = 2.5; // pixels — require this movement to consider touch
-const requireDotThreshold = 0.2; // require normalized dot product > this to consider movement toward jelly
+// These values are user-tunable via the settings UI and persisted to localStorage
+let settings = {
+    movementThreshold: Number(localStorage.getItem('movementThreshold')) || 2.5, // pixels — require this movement to consider touch
+    requireDotThreshold: Number(localStorage.getItem('requireDotThreshold')) || 0.2, // normalized dot product threshold
+    globalCooldown: Number(localStorage.getItem('globalCooldown')) || 220 // ms between global sfx
+};
 const speedRampPerFrame = 0.00005; // how much speedFactor increases each frame
 const maxJelly = 12; // maximum simultaneous jellyfish
 
 // Jellyfish hit sound element
 const jellySfx = document.getElementById('jellySfx');
+
+// Settings UI elements (initialized below) - optional if panel not present
+const sensitivityEl = document.getElementById('sensitivity');
+const sensitivityValEl = document.getElementById('sensitivityVal');
+const alignmentEl = document.getElementById('alignment');
+const alignmentValEl = document.getElementById('alignmentVal');
+const cooldownEl = document.getElementById('cooldown');
+const cooldownValEl = document.getElementById('cooldownVal');
+
+function initSettingsUI() {
+    // If the elements are missing (older HTML), skip quietly
+    try {
+        if (sensitivityEl) {
+            sensitivityEl.min = 0; sensitivityEl.max = 12; sensitivityEl.step = 0.1;
+            sensitivityEl.value = settings.movementThreshold;
+            sensitivityValEl.textContent = settings.movementThreshold;
+            sensitivityEl.addEventListener('input', (e) => {
+                settings.movementThreshold = Number(e.target.value);
+                sensitivityValEl.textContent = settings.movementThreshold;
+                try { localStorage.setItem('movementThreshold', String(settings.movementThreshold)); } catch (e) {}
+            });
+        }
+        if (alignmentEl) {
+            alignmentEl.min = -1; alignmentEl.max = 1; alignmentEl.step = 0.01;
+            alignmentEl.value = settings.requireDotThreshold;
+            alignmentValEl.textContent = settings.requireDotThreshold;
+            alignmentEl.addEventListener('input', (e) => {
+                settings.requireDotThreshold = Number(e.target.value);
+                alignmentValEl.textContent = settings.requireDotThreshold;
+                try { localStorage.setItem('requireDotThreshold', String(settings.requireDotThreshold)); } catch (e) {}
+            });
+        }
+        if (cooldownEl) {
+            cooldownEl.min = 0; cooldownEl.max = 1200; cooldownEl.step = 10;
+            cooldownEl.value = settings.globalCooldown;
+            cooldownValEl.textContent = settings.globalCooldown;
+            cooldownEl.addEventListener('input', (e) => {
+                settings.globalCooldown = Number(e.target.value);
+                cooldownValEl.textContent = settings.globalCooldown;
+                try { localStorage.setItem('globalCooldown', String(settings.globalCooldown)); } catch (e) {}
+            });
+        }
+    } catch (e) {
+        // ignore - UI is optional
+    }
+}
+
+// initialize (if panel exists)
+initSettingsUI();
 
 // Play jelly chime safely by cloning the audio element so multiple sounds can overlap.
 function playJellySfx() {
@@ -113,7 +166,7 @@ canvas.addEventListener('mousemove', (event) => {
         const dx = mouse.x - prevMouse.x;
         const dy = mouse.y - prevMouse.y;
         const moved = Math.sqrt(dx * dx + dy * dy);
-        if (moved >= movementThreshold && jellyEnabled) {
+    if (moved >= settings.movementThreshold && jellyEnabled) {
             // normalized movement vector
             const mvx = dx / moved;
             const mvy = dy / moved;
@@ -136,9 +189,9 @@ canvas.addEventListener('mousemove', (event) => {
                     const toJellyY = ddy / (dist || 1);
                     const dot = mvx * toJellyX + mvy * toJellyY; // 1 = directly toward, -1 away
                     const now = Date.now();
-                    const perJellyCooldown = 500; // ms
-                    const globalCooldown = 220; // ms
-                    if (dot >= requireDotThreshold && (now - j.lastHit) > perJellyCooldown && (now - lastSfxTime) > globalCooldown) {
+                    const perJellyCooldown = 500; // ms (keep a reasonable minimum per-jelly cooldown)
+                    const globalCooldown = settings.globalCooldown; // ms (user-tunable)
+                    if (dot >= settings.requireDotThreshold && (now - j.lastHit) > perJellyCooldown && (now - lastSfxTime) > globalCooldown) {
                         j.disappearing = true;
                         j.hit = true;
                         j.lastHit = now;
