@@ -259,7 +259,7 @@ canvas.addEventListener('mousemove', (event) => {
             const prevDx = j.x - (prevMouse.x || mouse.x);
             const prevDy = j.y - (prevMouse.y || mouse.y);
             const prevDist = Math.sqrt(prevDx * prevDx + prevDy * prevDy);
-            const enteringRequired = prevDist > bodyR * 0.95 && dist < bodyR * 0.8;
+            const enteringRequired = prevDist > bodyR * 1.05 && dist < bodyR * 0.8;
 
             // only proceed if movement was large enough OR we detected an entering crossing
             if (!(moved >= settings.movementThreshold || enteringRequired)) continue;
@@ -270,8 +270,16 @@ canvas.addEventListener('mousemove', (event) => {
             const dot = mvx * toJellyX + mvy * toJellyY; // 1 = directly toward, -1 away
 
             const now = Date.now();
-            const perJellyCooldown = 500; // ms (keep a reasonable minimum per-jelly cooldown)
+            const perJellyCooldown = 600; // ms (slightly larger to avoid rapid retriggers)
             const globalCooldown = settings.globalCooldown; // ms (user-tunable)
+
+            // small spawn grace to avoid jellies spawning under the cursor causing a chime
+            const spawnGrace = 140; // ms
+            if ((now - j.spawnTime) < spawnGrace) {
+                // suppressed due to recent spawn
+                try { console.log('[chime-suppressed] jelly=', j.id, 'reason=spawnGrace', 'ageMs=', now - j.spawnTime); } catch (e) {}
+                continue;
+            }
 
             const directionOk = enteringRequired ? true : (dot >= settings.requireDotThreshold);
 
@@ -296,6 +304,12 @@ canvas.addEventListener('mousemove', (event) => {
                     particles.push(part);
                 }
                 break; // only trigger one jelly per movement
+            } else {
+                // suppressed — log why for diagnostics
+                try {
+                    const reason = (now - j.lastHit) <= perJellyCooldown ? 'perJellyCooldown' : (now - lastSfxTime) <= globalCooldown ? 'globalCooldown' : 'direction/movement-failed';
+                    console.log('[chime-suppressed] jelly=', j.id, 'dist=', Math.round(dist), 'prevDist=', Math.round(prevDist), 'moved=', Math.round(moved), 'dot=', dot.toFixed(2), 'entering=', enteringRequired, 'reason=', reason, 'timing=', {sinceLastHit: now - j.lastHit, sinceGlobal: now - lastSfxTime});
+                } catch (e) {}
             }
         }
     }
@@ -393,6 +407,7 @@ class Jellyfish {
         this.disappearing = false;
         this.hit = false; // whether already touched by mouse
         this.lastHit = 0; // timestamp of last time this jelly produced a sound
+        this.spawnTime = Date.now(); // small grace period after spawning to avoid immediate triggers
     }
 
     update() {
