@@ -5,6 +5,10 @@ const ctx = canvas.getContext('2d');
 const bgMusic = document.getElementById('bgMusic');
 const toggleMusic = document.getElementById('toggleMusic');
 const volumeSlider = document.getElementById('volumeSlider');
+const toggleJelly = document.getElementById('toggleJelly');
+
+// Jellyfish enabled flag
+let jellyEnabled = true;
 
 // Music controls
 toggleMusic.addEventListener('click', () => {
@@ -20,6 +24,23 @@ toggleMusic.addEventListener('click', () => {
 volumeSlider.addEventListener('input', (e) => {
     bgMusic.volume = e.target.value;
 });
+
+// Jellyfish toggle button behavior
+if (toggleJelly) {
+    toggleJelly.addEventListener('click', () => {
+        jellyEnabled = !jellyEnabled;
+        toggleJelly.textContent = `🪼 Jellyfish: ${jellyEnabled ? 'On' : 'Off'}`;
+        toggleJelly.classList.toggle('toggled', jellyEnabled);
+        if (!jellyEnabled) {
+            // clear existing jellyfish immediately
+            jellyfish.length = 0;
+            spawnTimer = 0;
+        } else {
+            // spawn one to make it feel responsive
+            spawnJelly();
+        }
+    });
+}
 
 // Set canvas size to window size
 function resizeCanvas() {
@@ -142,28 +163,35 @@ function spawnJelly() {
 }
 
 // initial jellyfish
-for (let i = 0; i < 2; i++) spawnJelly();
+if (jellyEnabled) {
+    for (let i = 0; i < 2; i++) spawnJelly();
+}
 
 function animate() {
     // translucent background for trailing effect
     ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // update and draw jellyfish behind particles
-    for (let i = 0; i < jellyfish.length; i++) {
-        jellyfish[i].update();
-        jellyfish[i].draw();
-        if (jellyfish[i].isOffScreen()) {
-            jellyfish.splice(i, 1);
-            i--;
+    // update and draw jellyfish behind particles (if enabled)
+    if (jellyEnabled) {
+        for (let i = 0; i < jellyfish.length; i++) {
+            jellyfish[i].update();
+            jellyfish[i].draw();
+            if (jellyfish[i].isOffScreen()) {
+                jellyfish.splice(i, 1);
+                i--;
+            }
         }
-    }
 
-    // spawn timer
-    spawnTimer++;
-    if (spawnTimer > spawnInterval) {
+        // spawn timer
+        spawnTimer++;
+        if (spawnTimer > spawnInterval) {
+            spawnTimer = 0;
+            spawnJelly();
+        }
+    } else {
+        // ensure spawn timer doesn't grow while disabled
         spawnTimer = 0;
-        spawnJelly();
     }
 
     // draw particles (cursor trail) on top

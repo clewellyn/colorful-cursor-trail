@@ -48,6 +48,11 @@ body {
     color: #000;
 }
 
+.retro-button.toggled {
+    background: #00ff00;
+    color: #000;
+}
+
 #volumeSlider {
     -webkit-appearance: none;
     width: 100px;
