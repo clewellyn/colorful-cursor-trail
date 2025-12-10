@@ -10,6 +10,22 @@ const toggleJelly = document.getElementById('toggleJelly');
 // Jellyfish enabled flag
 let jellyEnabled = true;
 
+// Jellyfish hit sound element
+const jellySfx = document.getElementById('jellySfx');
+
+function playJellySfx() {
+    if (!jellySfx) return;
+    // Clone the element so multiple hits can overlap
+    try {
+        const s = jellySfx.cloneNode();
+        s.volume = volumeSlider ? Number(volumeSlider.value) : 0.5;
+        s.play().catch(() => {});
+    } catch (e) {
+        // fallback: try playing the original
+        try { jellySfx.currentTime = 0; jellySfx.play().catch(()=>{}); } catch (_) {}
+    }
+}
+
 // Music controls
 toggleMusic.addEventListener('click', () => {
     if (bgMusic.paused) {
@@ -198,6 +214,8 @@ function animate() {
                 if (dist < j.size * 0.9) {
                     j.disappearing = true;
                     j.hit = true;
+                    // play relaxing chime when jellyfish is hit
+                    playJellySfx();
                     // create a small burst of particles at jellyfish position
                     for (let p = 0; p < 18; p++) {
                         const part = new Particle(j.x, j.y);
