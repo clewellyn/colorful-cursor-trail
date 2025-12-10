@@ -44,6 +44,7 @@ let _previousSettings = null; // used for undo after reset
 // settings UI: safe mode and in-page logs
 const safeModeEl = document.getElementById('safeMode');
 const showLogsBtn = document.getElementById('showLogs');
+const exportLogsBtn = document.getElementById('exportLogs');
 let inPageLogs = [];
 function appendLog(type, text) {
     const t = `${new Date().toLocaleTimeString()} ${text}`;
@@ -214,6 +215,41 @@ if (showLogsBtn) {
         panel.classList.toggle('show');
         // render existing logs
         panel.innerHTML = inPageLogs.slice().reverse().map(l => `<div class="log-entry ${l.type}">${l.text}</div>`).join('');
+    });
+}
+
+// Export logs button: copies logs to clipboard or downloads as a .txt fallback
+function getLogsText() {
+    return inPageLogs.slice().map(l => `${l.text}`).join('\n');
+}
+
+if (exportLogsBtn) {
+    exportLogsBtn.addEventListener('click', async () => {
+        const text = getLogsText();
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+                appendLog('info', '[export] copied logs to clipboard');
+            } else {
+                throw new Error('clipboard-unavailable');
+            }
+        } catch (e) {
+            // fallback to download
+            try {
+                const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'colorful-cursor-logs.txt';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                appendLog('info', '[export] downloaded logs as colorful-cursor-logs.txt');
+            } catch (ex) {
+                appendLog('suppressed', '[export] failed to export logs');
+            }
+        }
     });
 }
 
