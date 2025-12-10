@@ -220,7 +220,15 @@ if (showLogsBtn) {
 
 // Export logs button: copies logs to clipboard or downloads as a .txt fallback
 function getLogsText() {
-    return inPageLogs.slice().map(l => `${l.text}`).join('\n');
+    // Filter out known UI helper lines that may have been accidentally captured
+    const ignoredSnippets = [
+        'Values persist in your browser. Tweak to reduce accidental chimes.',
+        'Settings are saved locally. Increase Sensitivity or Cooldown to reduce accidental chimes.'
+    ];
+    return inPageLogs.slice().map(l => l.text).filter(t => {
+        for (let s of ignoredSnippets) if (t.indexOf(s) !== -1) return false;
+        return true;
+    }).join('\n');
 }
 
 // Small on-screen toast for quick confirmations
