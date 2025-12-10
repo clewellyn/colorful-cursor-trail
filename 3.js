@@ -105,11 +105,13 @@ class Particle {
 
 let particles = [];
 let mouse = { x: null, y: null };
+let lastMouseMove = 0;
 
 // Track mouse movement
 canvas.addEventListener('mousemove', (event) => {
     mouse.x = event.x;
     mouse.y = event.y;
+    lastMouseMove = Date.now();
     for (let i = 0; i < 5; i++) particles.push(new Particle(mouse.x, mouse.y));
 });
 
@@ -219,7 +221,8 @@ function animate() {
             const j = jellyfish[i];
 
             // mouse collision: soft disappear when touched
-            if (!j.disappearing && mouse.x != null && mouse.y != null) {
+            // only trigger if the user moved the mouse recently (prevents accidental/random plays)
+            if (!j.disappearing && mouse.x != null && mouse.y != null && (Date.now() - lastMouseMove) < 800) {
                 const dx = j.x - mouse.x;
                 const dy = j.y - mouse.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
