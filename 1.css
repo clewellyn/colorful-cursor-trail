@@ -181,3 +181,7 @@ body {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
 }
+/* variants */
+.app-toast.success { background: linear-gradient(90deg,#062006,#0b4020); border-color: rgba(80,255,140,0.12); color: #dfffe0; }
+.app-toast.error { background: linear-gradient(90deg,#2b0606,#4a0b0b); border-color: rgba(255,120,120,0.12); color: #ffdede; }
+.app-toast.info { background: rgba(20,24,28,0.92); border-color: rgba(160,255,160,0.08); color: #bfffbf; }

@@ -224,14 +224,19 @@ function getLogsText() {
 }
 
 // Small on-screen toast for quick confirmations
-function showToast(msg, ms = 2000) {
+function showToast(msg, ms = 2000, type = 'info') {
     try {
         let t = document.querySelector('.app-toast');
         if (!t) {
             t = document.createElement('div');
             t.className = 'app-toast';
+            t.setAttribute('role', 'status');
+            t.setAttribute('aria-live', 'polite');
             document.body.appendChild(t);
         }
+        // normalize type: 'success' | 'error' | 'info'
+        t.classList.remove('success', 'error', 'info');
+        t.classList.add(type);
         t.textContent = msg;
         t.classList.add('show');
         clearTimeout(t._hideTimer);
@@ -250,7 +255,7 @@ if (exportLogsBtn) {
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 await navigator.clipboard.writeText(text);
                 appendLog('info', '[export] copied logs to clipboard');
-                showToast('Logs copied to clipboard', 1800);
+                showToast('Logs copied to clipboard', 1800, 'success');
             } else {
                 throw new Error('clipboard-unavailable');
             }
@@ -267,10 +272,10 @@ if (exportLogsBtn) {
                 a.remove();
                 URL.revokeObjectURL(url);
                 appendLog('info', '[export] downloaded logs as colorful-cursor-logs.txt');
-                showToast('Logs downloaded', 1800);
+                showToast('Logs downloaded', 1800, 'success');
             } catch (ex) {
                 appendLog('suppressed', '[export] failed to export logs');
-                showToast('Export failed', 2000);
+                showToast('Export failed', 2000, 'error');
             }
         }
     });
