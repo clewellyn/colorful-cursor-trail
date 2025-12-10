@@ -41,6 +41,20 @@ const undoResetBtn = document.getElementById('undoReset');
 const debugToggleBtn = document.getElementById('debugToggle');
 let debugEnabled = (localStorage.getItem('debugOverlay') === '1');
 let _previousSettings = null; // used for undo after reset
+// settings UI: safe mode and in-page logs
+const safeModeEl = document.getElementById('safeMode');
+const showLogsBtn = document.getElementById('showLogs');
+let inPageLogs = [];
+function appendLog(type, text) {
+    const t = `${new Date().toLocaleTimeString()} ${text}`;
+    inPageLogs.push({ type, text: t });
+    if (inPageLogs.length > 200) inPageLogs.shift();
+    // render if panel exists
+    const panel = document.querySelector('.log-panel');
+    if (panel) {
+        panel.innerHTML = inPageLogs.slice().reverse().map(l => `<div class="log-entry ${l.type}">${l.text}</div>`).join('');
+    }
+}
 
 function initSettingsUI() {
     // If the elements are missing (older HTML), skip quietly
@@ -142,11 +156,75 @@ if (debugToggleBtn) {
     applyDebugButtonState();
 }
 
+// wire safe mode and show logs
+if (safeModeEl) {
+    // initialize
+    try { safeModeEl.checked = localStorage.getItem('safeMode') === '1'; } catch (e) {}
+    // Safe mode runtime behaviour: when enabled, apply stricter interaction thresholds
+    const SAFE_MODE_CONFIG = { movementThreshold: 6.5, requireDotThreshold: 0.6, globalCooldown: 600 };
+    let _savedSettingsBeforeSafe = null;
+    function applySafeMode(enabled) {
+        try {
+            if (enabled) {
+                // save current user settings so we can restore later
+                if (!_savedSettingsBeforeSafe) _savedSettingsBeforeSafe = Object.assign({}, settings);
+                settings.movementThreshold = SAFE_MODE_CONFIG.movementThreshold;
+                settings.requireDotThreshold = SAFE_MODE_CONFIG.requireDotThreshold;
+                settings.globalCooldown = SAFE_MODE_CONFIG.globalCooldown;
+                try { localStorage.setItem('movementThreshold', String(settings.movementThreshold)); } catch (e) {}
+                try { localStorage.setItem('requireDotThreshold', String(settings.requireDotThreshold)); } catch (e) {}
+                try { localStorage.setItem('globalCooldown', String(settings.globalCooldown)); } catch (e) {}
+                // update UI sliders if present
+                if (sensitivityEl) { sensitivityEl.value = settings.movementThreshold; sensitivityValEl.textContent = settings.movementThreshold; }
+                if (alignmentEl) { alignmentEl.value = settings.requireDotThreshold; alignmentValEl.textContent = settings.requireDotThreshold; }
+                if (cooldownEl) { cooldownEl.value = settings.globalCooldown; cooldownValEl.textContent = settings.globalCooldown; }
+                appendLog('info', `[safeMode] enabled: applied stricter thresholds`);
+            } else {
+                // restore previous settings if we have them
+                if (_savedSettingsBeforeSafe) {
+                    settings = Object.assign({}, _savedSettingsBeforeSafe);
+                    try { localStorage.setItem('movementThreshold', String(settings.movementThreshold)); } catch (e) {}
+                    try { localStorage.setItem('requireDotThreshold', String(settings.requireDotThreshold)); } catch (e) {}
+                    try { localStorage.setItem('globalCooldown', String(settings.globalCooldown)); } catch (e) {}
+                    if (sensitivityEl) { sensitivityEl.value = settings.movementThreshold; sensitivityValEl.textContent = settings.movementThreshold; }
+                    if (alignmentEl) { alignmentEl.value = settings.requireDotThreshold; alignmentValEl.textContent = settings.requireDotThreshold; }
+                    if (cooldownEl) { cooldownEl.value = settings.globalCooldown; cooldownValEl.textContent = settings.globalCooldown; }
+                    _savedSettingsBeforeSafe = null;
+                }
+                appendLog('info', `[safeMode] disabled: restored user settings`);
+            }
+        } catch (e) {}
+    }
+
+    // apply initial state and persist changes
+    try { applySafeMode(safeModeEl.checked); } catch (e) {}
+    safeModeEl.addEventListener('change', (e) => {
+        try { localStorage.setItem('safeMode', e.target.checked ? '1' : '0'); } catch (e) {}
+        applySafeMode(e.target.checked);
+    });
+}
+if (showLogsBtn) {
+    let panel = null;
+    showLogsBtn.addEventListener('click', () => {
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.className = 'log-panel';
+            document.body.appendChild(panel);
+        }
+        panel.classList.toggle('show');
+        // render existing logs
+        panel.innerHTML = inPageLogs.slice().reverse().map(l => `<div class="log-entry ${l.type}">${l.text}</div>`).join('');
+    });
+}
+
 // Play jelly chime safely by cloning the audio element so multiple sounds can overlap.
 function playJellySfx() {
     if (!jellySfx) return;
+    if (!sfxEnabled) return;
     try {
         const s = jellySfx.cloneNode(true);
+        // mark clones so we can find/remove them when pausing
+        try { s.dataset.sfxClone = '1'; } catch (e) {}
         s.volume = volumeSlider ? Number(volumeSlider.value) : 0.5;
         s.playbackRate = 0.92 + Math.random() * 0.16;
         s.currentTime = 0;
@@ -203,8 +281,12 @@ class Particle {
 let particles = [];
 let mouse = { x: null, y: null };
 let prevMouse = { x: null, y: null };
+// track whether the mouse listener is currently attached (so we can remove it when paused)
+let mouseListenerAttached = false;
 // global cooldown to avoid many chimes in quick succession
 let lastSfxTime = 0;
+// whether we allow jelly sfx to play (paused will set this false)
+let sfxEnabled = true;
 // pause/resume controls
 let paused = false;
 let rafId = null;
@@ -223,7 +305,7 @@ if (hint && !localStorage.getItem('seenHint')) {
 }
 
 // Track mouse movement: draw particles and trigger jelly hit when user moves into one
-canvas.addEventListener('mousemove', (event) => {
+function onCanvasMouseMove(event) {
     if (paused) return; // ignore input while paused
     prevMouse.x = mouse.x;
     prevMouse.y = mouse.y;
@@ -278,6 +360,7 @@ canvas.addEventListener('mousemove', (event) => {
             if ((now - j.spawnTime) < spawnGrace) {
                 // suppressed due to recent spawn
                 try { console.log('[chime-suppressed] jelly=', j.id, 'reason=spawnGrace', 'ageMs=', now - j.spawnTime); } catch (e) {}
+                appendLog('suppressed', `[spawnGrace] jelly=${j.id} ageMs=${now - j.spawnTime}`);
                 continue;
             }
 
@@ -286,7 +369,9 @@ canvas.addEventListener('mousemove', (event) => {
             if (dist < bodyR * 0.8 && directionOk && (now - j.lastHit) > perJellyCooldown && (now - lastSfxTime) > globalCooldown) {
                 // diagnostic log to help tune thresholds if needed
                 try {
-                    console.log('[chime] jelly=', j.id, 'dist=', Math.round(dist), 'prevDist=', Math.round(prevDist), 'moved=', Math.round(moved), 'dot=', dot.toFixed(2), 'entering=', enteringRequired, 'thresholds=', {movementThreshold: settings.movementThreshold, requireDotThreshold: settings.requireDotThreshold, globalCooldown: settings.globalCooldown}, 'nowDiff=', now - lastSfxTime);
+                    const msg = `[chime] jelly=${j.id} dist=${Math.round(dist)} prevDist=${Math.round(prevDist)} moved=${Math.round(moved)} dot=${dot.toFixed(2)} entering=${enteringRequired} nowDiff=${now - lastSfxTime}`;
+                    console.log(msg);
+                    appendLog('chime', msg);
                 } catch (e) {}
                 j.disappearing = true;
                 j.hit = true;
@@ -308,12 +393,17 @@ canvas.addEventListener('mousemove', (event) => {
                 // suppressed — log why for diagnostics
                 try {
                     const reason = (now - j.lastHit) <= perJellyCooldown ? 'perJellyCooldown' : (now - lastSfxTime) <= globalCooldown ? 'globalCooldown' : 'direction/movement-failed';
-                    console.log('[chime-suppressed] jelly=', j.id, 'dist=', Math.round(dist), 'prevDist=', Math.round(prevDist), 'moved=', Math.round(moved), 'dot=', dot.toFixed(2), 'entering=', enteringRequired, 'reason=', reason, 'timing=', {sinceLastHit: now - j.lastHit, sinceGlobal: now - lastSfxTime});
+                    const msg = `[chime-suppressed] jelly=${j.id} dist=${Math.round(dist)} prevDist=${Math.round(prevDist)} moved=${Math.round(moved)} dot=${dot.toFixed(2)} entering=${enteringRequired} reason=${reason}`;
+                    console.log(msg);
+                    appendLog('suppressed', msg);
                 } catch (e) {}
             }
         }
     }
-});
+}
+
+// attach the listener initially
+try { canvas.addEventListener('mousemove', onCanvasMouseMove); mouseListenerAttached = true; } catch (e) {}
 
 // Try to unlock audio on first user gesture — browsers block audio until a gesture occurs.
 let audioUnlocked = false;
@@ -678,13 +768,30 @@ function setPaused(p) {
         try {
             if (bgMusic && !bgMusic.paused) { _wasMusicPlaying = true; bgMusic.pause(); } else { _wasMusicPlaying = false; }
         } catch (e) {}
+        // disable sfx while paused and remove any cloned sfx elements
+        try {
+            sfxEnabled = false;
+            const clones = document.querySelectorAll('audio[data-sfx-clone]');
+            clones.forEach(c => { try { c.pause(); c.remove(); } catch (e) {} });
+        } catch (e) {}
+        // detach mousemove listener to fully prevent interaction while paused
+        try {
+            if (mouseListenerAttached) { canvas.removeEventListener('mousemove', onCanvasMouseMove); mouseListenerAttached = false; }
+        } catch (e) {}
+        appendLog('info', '[pause] paused - sfx disabled');
         if (pauseBtn) pauseBtn.textContent = '▶ Resume';
     } else {
         // resume
+        try { sfxEnabled = true; } catch (e) {}
+        // re-attach mouse listener
+        try {
+            if (!mouseListenerAttached) { canvas.addEventListener('mousemove', onCanvasMouseMove); mouseListenerAttached = true; }
+        } catch (e) {}
         if (_wasMusicPlaying) try { bgMusic.play().catch(()=>{}); } catch (e) {}
         // restart animation
         rafId = requestAnimationFrame(animate);
         if (pauseBtn) pauseBtn.textContent = '⏸️ Pause';
+        appendLog('info', '[pause] resumed - sfx enabled');
     }
 }
 
