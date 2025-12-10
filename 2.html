@@ -17,24 +17,29 @@
             <h4>Interaction Settings</h4>
             <div class="slider-row">
                 <label for="sensitivity">Sensitivity</label>
-                <input id="sensitivity" type="range" min="0" max="12" step="0.1">
+                <input id="sensitivity" type="range" min="0" max="12" step="0.1" title="Minimum cursor movement (pixels) required to consider touching a jellyfish">
                 <span id="sensitivityVal"></span>
             </div>
             <div class="slider-row">
                 <label for="alignment">Alignment</label>
-                <input id="alignment" type="range" min="-1" max="1" step="0.01">
+                <input id="alignment" type="range" min="-1" max="1" step="0.01" title="How directly your movement must be aimed at a jelly (1 = directly toward, -1 = away)">
                 <span id="alignmentVal"></span>
             </div>
             <div class="slider-row">
                 <label for="cooldown">Global cooldown (ms)</label>
-                <input id="cooldown" type="range" min="0" max="1200" step="10">
+                <input id="cooldown" type="range" min="0" max="1200" step="10" title="Minimum time between chimes (milliseconds)">
                 <span id="cooldownVal"></span>
             </div>
             <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
                 <button id="resetSettings" class="retro-button small">Reset to defaults</button>
+                <button id="undoReset" class="retro-button small" style="display:none;">Undo</button>
                 <small class="muted">Values persist in your browser. Tweak to reduce accidental chimes.</small>
             </div>
             <div style="margin-top:6px; font-size:12px; color:#cfd8ff;">Tip: raise Sensitivity or Cooldown to avoid accidental chimes. Alignment controls how directly you must move toward a jelly.</div>
+            <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+                <button id="debugToggle" class="retro-button small">Toggle Debug Overlay</button>
+                <small style="color:#bfcfff; font-size:12px;">Show detection radii and movement vector to diagnose false hits.</small>
+            </div>
         </div>
     <audio id="bgMusic" loop>
         <source src="music.mp3" type="audio/mp3">

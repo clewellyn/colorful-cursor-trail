@@ -34,6 +34,10 @@ const alignmentValEl = document.getElementById('alignmentVal');
 const cooldownEl = document.getElementById('cooldown');
 const cooldownValEl = document.getElementById('cooldownVal');
 const resetBtn = document.getElementById('resetSettings');
+const undoResetBtn = document.getElementById('undoReset');
+const debugToggleBtn = document.getElementById('debugToggle');
+let debugEnabled = (localStorage.getItem('debugOverlay') === '1');
+let _previousSettings = null; // used for undo after reset
 
 function initSettingsUI() {
     // If the elements are missing (older HTML), skip quietly
@@ -91,12 +95,48 @@ function resetSettingsToDefaults() {
 
 if (resetBtn) {
     resetBtn.addEventListener('click', (e) => {
+        // ask for confirmation first
+        try {
+            if (!confirm('Reset interaction settings to defaults?')) return;
+        } catch (err) {}
+        // store previous settings for undo
+        _previousSettings = Object.assign({}, settings);
         resetSettingsToDefaults();
-        // a small visual feedback: briefly change button text
+        // show undo button briefly
+        if (undoResetBtn) {
+            undoResetBtn.style.display = 'inline-block';
+            undoResetBtn.textContent = 'Undo';
+            setTimeout(() => { try { undoResetBtn.style.display = 'none'; } catch (e) {} }, 7000);
+        }
         const old = resetBtn.textContent;
         resetBtn.textContent = 'Reset ✓';
         setTimeout(() => { try { resetBtn.textContent = old; } catch (e) {} }, 900);
     });
+}
+
+if (undoResetBtn) {
+    undoResetBtn.addEventListener('click', () => {
+        if (!_previousSettings) return;
+        settings = Object.assign({}, _previousSettings);
+        try { localStorage.setItem('movementThreshold', String(settings.movementThreshold)); } catch (e) {}
+        try { localStorage.setItem('requireDotThreshold', String(settings.requireDotThreshold)); } catch (e) {}
+        try { localStorage.setItem('globalCooldown', String(settings.globalCooldown)); } catch (e) {}
+        if (sensitivityEl) { sensitivityEl.value = settings.movementThreshold; sensitivityValEl.textContent = settings.movementThreshold; }
+        if (alignmentEl) { alignmentEl.value = settings.requireDotThreshold; alignmentValEl.textContent = settings.requireDotThreshold; }
+        if (cooldownEl) { cooldownEl.value = settings.globalCooldown; cooldownValEl.textContent = settings.globalCooldown; }
+        _previousSettings = null;
+        undoResetBtn.style.display = 'none';
+    });
+}
+
+// wire debug toggle button
+if (debugToggleBtn) {
+    const applyDebugButtonState = () => {
+        debugToggleBtn.textContent = debugEnabled ? 'Debug: On' : 'Toggle Debug Overlay';
+        try { localStorage.setItem('debugOverlay', debugEnabled ? '1' : '0'); } catch (e) {}
+    };
+    debugToggleBtn.addEventListener('click', () => { debugEnabled = !debugEnabled; applyDebugButtonState(); });
+    applyDebugButtonState();
 }
 
 // Play jelly chime safely by cloning the audio element so multiple sounds can overlap.
@@ -503,6 +543,82 @@ function animate() {
         if (particles[i].size <= 0.2) {
             particles.splice(i, 1);
             i--;
+        }
+    }
+
+    // debug overlay draws after everything else so it's visible
+    if (debugEnabled) {
+        // small overlay: draw body radii around each jelly and movement vector
+        try {
+            ctx.save();
+            // movement vector
+            if (prevMouse.x !== null && mouse.x !== null) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+                ctx.lineWidth = 1.8;
+                ctx.beginPath();
+                ctx.moveTo(prevMouse.x, prevMouse.y);
+                ctx.lineTo(mouse.x, mouse.y);
+                ctx.stroke();
+                // arrow head
+                const dx = mouse.x - prevMouse.x; const dy = mouse.y - prevMouse.y;
+                const ang = Math.atan2(dy, dx);
+                const ah = 8;
+                ctx.beginPath();
+                ctx.moveTo(mouse.x, mouse.y);
+                ctx.lineTo(mouse.x - ah * Math.cos(ang - 0.4), mouse.y - ah * Math.sin(ang - 0.4));
+                ctx.lineTo(mouse.x - ah * Math.cos(ang + 0.4), mouse.y - ah * Math.sin(ang + 0.4));
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                ctx.fill();
+            }
+
+            for (let i = 0; i < jellyfish.length; i++) {
+                const j = jellyfish[i];
+                const bw = j.size * (j.wFactor || 1);
+                const bh = j.size * (j.hFactor || 1);
+                const bodyR = Math.max(bw, bh);
+                // draw body radius
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(120,200,255,0.6)';
+                ctx.lineWidth = 1.5;
+                ctx.ellipse(j.x, j.y, bw * 0.8, bh * 0.8, 0, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // draw full body outline for reference
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(80,140,200,0.25)';
+                ctx.lineWidth = 1;
+                ctx.ellipse(j.x, j.y, bw * 1.05, bh * 1.05, 0, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // if mouse present, draw line from mouse to jelly and display distance/dot
+                if (mouse.x !== null && prevMouse.x !== null) {
+                    const ddx = j.x - mouse.x;
+                    const ddy = j.y - mouse.y;
+                    const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+                    const mvx = (mouse.x - prevMouse.x);
+                    const mvy = (mouse.y - prevMouse.y);
+                    const moved = Math.sqrt(mvx * mvx + mvy * mvy) || 1;
+                    const mvxn = mvx / moved; const mvyn = mvy / moved;
+                    const toJx = ddx / (dist || 1); const toJy = ddy / (dist || 1);
+                    const dot = mvxn * toJx + mvyn * toJy;
+                    ctx.beginPath();
+                    ctx.moveTo(mouse.x, mouse.y);
+                    ctx.lineTo(j.x, j.y);
+                    ctx.strokeStyle = 'rgba(200,200,120,0.6)';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    // text
+                    const tx = mouse.x + 8; const ty = mouse.y - 8 + i * 12;
+                    ctx.fillStyle = 'rgba(220,240,255,0.95)';
+                    ctx.font = '12px system-ui, -apple-system, Roboto, Arial';
+                    ctx.fillText(`d=${Math.round(dist)} dot=${dot.toFixed(2)}`, tx, ty);
+                }
+            }
+        } catch (e) {
+            // ignore drawing errors
+        } finally {
+            ctx.restore();
         }
     }
 
