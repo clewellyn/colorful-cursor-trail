@@ -83,6 +83,8 @@ class Particle {
 let particles = [];
 let mouse = { x: null, y: null };
 let prevMouse = { x: null, y: null };
+// global cooldown to avoid many chimes in quick succession
+let lastSfxTime = 0;
 
 // hint tooltip (show once)
 const hint = document.getElementById('hint');
@@ -123,21 +125,31 @@ canvas.addEventListener('mousemove', (event) => {
                 const ddx = cx - mouse.x;
                 const ddy = cy - mouse.y;
                 const dist = Math.sqrt(ddx * ddx + ddy * ddy);
-                if (dist < j.size * 0.9) {
+                // use jelly body radius (accounts for width/height variation)
+                const bw = j.size * (j.wFactor || 1);
+                const bh = j.size * (j.hFactor || 1);
+                const bodyR = Math.max(bw, bh);
+                // require the cursor be fairly well inside the jelly body
+                if (dist < bodyR * 0.8) {
                     // directional check: movement should be (at least somewhat) towards jellyfish
                     const toJellyX = ddx / (dist || 1);
                     const toJellyY = ddy / (dist || 1);
                     const dot = mvx * toJellyX + mvy * toJellyY; // 1 = directly toward, -1 away
-                    if (dot >= requireDotThreshold) {
+                    const now = Date.now();
+                    const perJellyCooldown = 500; // ms
+                    const globalCooldown = 220; // ms
+                    if (dot >= requireDotThreshold && (now - j.lastHit) > perJellyCooldown && (now - lastSfxTime) > globalCooldown) {
                         j.disappearing = true;
                         j.hit = true;
+                        j.lastHit = now;
+                        lastSfxTime = now;
                         playJellySfx();
-                        for (let p = 0; p < 18; p++) {
+                        for (let p = 0; p < 14; p++) {
                             const part = new Particle(j.x, j.y);
                             part.color = j.color.replace(/hsla\(/, 'hsl(').replace(/,\s*0.9\)/, ')');
-                            part.size = Math.random() * 3 + 1;
+                            part.size = Math.random() * 2.4 + 0.8;
                             const angle = Math.random() * Math.PI * 2;
-                            const speed = 1 + Math.random() * 3;
+                            const speed = 0.8 + Math.random() * 2.6;
                             part.speedX = Math.cos(angle) * speed;
                             part.speedY = Math.sin(angle) * speed;
                             particles.push(part);
@@ -188,15 +200,23 @@ if (volumeSlider) volumeSlider.addEventListener('input', (e) => { try { bgMusic.
 // Jellyfish class
 class Jellyfish {
     constructor(side = 'left') {
-    // smaller default sizes so they appear reasonable on most screens
-    this.size = 14 + Math.random() * 22; // body radius (14..36)
+        // base size (used as a unit)
+        this.size = 14 + Math.random() * 22; // 14..36
+        // shape variation parameters
+        this.wFactor = 0.8 + Math.random() * 1.6;   // width multiplier (0.8..2.4)
+        this.hFactor = 0.7 + Math.random() * 1.0;   // height multiplier (0.7..1.7)
+        this.rotation = (Math.random() - 0.5) * 0.6; // small tilt in radians
+        // tentacle variation
+        this.tentacles = 3 + Math.floor(Math.random() * 6); // 3..8
+        this.tentacleLengthFactor = 0.9 + Math.random() * 1.4; // 0.9..2.3
+
         this.side = side;
         this.phase = Math.random() * Math.PI * 2;
-        this.baseSpeed = 0.3 + Math.random() * 0.6; // base movement speed
+        this.baseSpeed = 0.18 + Math.random() * 0.6; // base movement speed
         // direction vector
         this.dirX = 0;
         this.dirY = 0;
-        // initial position depending on entry side
+        // initial position depending on entry side (use CSS pixels so positions match visible canvas)
         if (side === 'left') {
             this.x = -this.size - Math.random() * 100;
             this.y = Math.random() * (canvas.clientHeight * 0.8) + canvas.clientHeight * 0.1;
@@ -218,15 +238,21 @@ class Jellyfish {
             this.dirY = -1;
             this.dirX = (Math.random() - 0.5) * 0.4;
         }
-        this.color = `hsla(${Math.floor(Math.random() * 360)}, 70%, 70%, 0.9)`;
-        this.tentacles = 4 + Math.floor(Math.random() * 4);
-        this.swaySpeed = 0.01 + Math.random() * 0.02;
+        // color variation: hue full range, saturation and lightness slightly varied
+        const h = Math.floor(Math.random() * 360);
+        const sat = 60 + Math.floor(Math.random() * 30); // 60..90
+        const light = 52 + Math.floor(Math.random() * 20); // 52..72
+        const alpha = 0.82 + Math.random() * 0.14;
+        this.color = `hsla(${h}, ${sat}%, ${light}%, ${alpha})`;
+        // sway speed a little influenced by size so smaller jellies move slightly quicker
+        this.swaySpeed = 0.012 + Math.random() * 0.02 + (36 - this.size) * 0.00015;
         this.age = 0;
         this.maxAge = 400 + Math.random() * 800; // frames
         // disappearance state
         this.alpha = 0.95;
         this.disappearing = false;
         this.hit = false; // whether already touched by mouse
+        this.lastHit = 0; // timestamp of last time this jelly produced a sound
     }
 
     update() {
@@ -234,12 +260,12 @@ class Jellyfish {
         // move according to base direction and global speed factor
         this.x += this.dirX * this.baseSpeed * speedFactor;
         this.y += this.dirY * this.baseSpeed * speedFactor;
-        // gentle perpendicular bob
-        const bob = Math.sin(this.phase) * (Math.min(2, this.size * 0.02));
+        // gentle perpendicular bob (modulated by shape factors)
+        const bob = Math.sin(this.phase) * (Math.min(3, this.size * 0.02));
         if (Math.abs(this.dirX) > Math.abs(this.dirY)) {
-            this.y += bob;
+            this.y += bob * this.hFactor;
         } else {
-            this.x += bob;
+            this.x += bob * this.wFactor;
         }
         // if in disappearing state, gently shrink and fade
         if (this.disappearing) {
@@ -251,31 +277,33 @@ class Jellyfish {
 
     draw() {
         ctx.save();
-        // hover glow if cursor nearby
+        // hover and body radius calculation (use body width/height)
         const dx = (mouse.x || -9999) - this.x;
         const dy = (mouse.y || -9999) - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const hover = dist < this.size * 1.1;
-        // hover strength 0..1 (closer = stronger)
-        const hoverStrength = hover ? Math.max(0, 1 - dist / (this.size * 1.1)) : 0;
-        // pulsing factor based on internal phase
-        const pulse = 0.6 + 0.4 * Math.sin(this.phase * 3);
+        const bw = this.size * this.wFactor;
+        const bh = this.size * this.hFactor;
+        const bodyR = Math.max(bw, bh);
+        const hover = dist < bodyR * 1.05;
+        const hoverStrength = hover ? Math.max(0, 1 - dist / (bodyR * 1.05)) : 0;
+        const pulse = 0.6 + 0.4 * Math.sin(this.phase * (2 + this.wFactor));
 
         if (hover && !this.disappearing) {
-            ctx.shadowBlur = 30 * hoverStrength * pulse;
-            ctx.shadowColor = `rgba(255,255,255,${0.35 * hoverStrength})`;
+            ctx.shadowBlur = 28 * hoverStrength * pulse;
+            ctx.shadowColor = `rgba(255,255,255,${0.32 * hoverStrength})`;
         } else {
             ctx.shadowBlur = 0;
         }
-        // apply per-jellyfish alpha
+        // apply per-jellyfish alpha and position/rotation
         ctx.globalAlpha = this.alpha;
         ctx.translate(this.x, this.y);
+        ctx.rotate(this.rotation);
 
         // subtle halo when hovered
         if (hover && !this.disappearing) {
-            const haloR = this.size * (1.6 + 0.4 * pulse);
-            const halo = ctx.createRadialGradient(0, 0, this.size * 0.2, 0, 0, haloR);
-            halo.addColorStop(0, `rgba(255,255,255,${0.08 * hoverStrength})`);
+            const haloR = bodyR * (1.5 + 0.35 * pulse);
+            const halo = ctx.createRadialGradient(0, 0, this.size * 0.18, 0, 0, haloR);
+            halo.addColorStop(0, `rgba(255,255,255,${0.06 * hoverStrength})`);
             halo.addColorStop(1, 'rgba(255,255,255,0)');
             ctx.fillStyle = halo;
             ctx.beginPath();
@@ -283,42 +311,45 @@ class Jellyfish {
             ctx.fill();
         }
 
-        // draw bell (body)
-        const grd = ctx.createRadialGradient(0, -this.size * 0.2, this.size * 0.1, 0, 0, this.size);
+        // draw bell (body) with variable width/height
+        const grd = ctx.createRadialGradient(0, -bh * 0.18, Math.min(bw, bh) * 0.08, 0, 0, bodyR);
         grd.addColorStop(0, this.color);
-        grd.addColorStop(1, 'rgba(255,255,255,0.05)');
+        grd.addColorStop(1, 'rgba(255,255,255,0.04)');
         ctx.fillStyle = grd;
         ctx.beginPath();
-        ctx.ellipse(0, 0, this.size * 1.1, this.size * 0.8, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, bw, bh, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // stronger pulsing outline when hovered
         if (hover && !this.disappearing) {
-            const outlineAlpha = 0.35 * hoverStrength * pulse;
-            ctx.lineWidth = Math.max(1, this.size * 0.08 * (0.8 + 0.4 * pulse));
+            const outlineAlpha = 0.32 * hoverStrength * pulse;
+            ctx.lineWidth = Math.max(0.8, bodyR * 0.06 * (0.9 + 0.4 * pulse));
             ctx.strokeStyle = `rgba(255,255,255,${outlineAlpha})`;
             ctx.beginPath();
-            ctx.ellipse(0, 0, this.size * 1.25, this.size * 0.95, 0, 0, Math.PI * 2);
+            ctx.ellipse(0, 0, bw * 1.12, bh * 1.06, 0, 0, Math.PI * 2);
             ctx.stroke();
         }
 
         // tentacles
         for (let t = 0; t < this.tentacles; t++) {
-            const angle = (t / (this.tentacles - 1 || 1) - 0.5) * Math.PI * 0.8; // spread
-            const length = this.size * (1.2 + Math.random() * 0.8);
-            const sway = Math.sin(this.phase * (0.8 + t * 0.1) + t) * 8;
+            const spread = Math.PI * 0.85;
+            const angle = (t / (this.tentacles - 1 || 1) - 0.5) * spread; // spread
+            const baseX = Math.cos(angle) * bw * 0.55;
+            const baseY = Math.sin(angle) * bh * 0.45 + bh * 0.35;
+            const length = this.size * (1.05 + Math.random() * this.tentacleLengthFactor);
+            const sway = Math.sin(this.phase * (0.9 + t * 0.07) + t) * (6 + this.size * 0.04);
             ctx.beginPath();
-            ctx.moveTo(Math.cos(angle) * this.size * 0.6, Math.sin(angle) * this.size * 0.5 + this.size * 0.3);
+            ctx.moveTo(baseX, baseY);
             ctx.bezierCurveTo(
-                Math.cos(angle) * this.size * 0.6 + sway * 0.2,
-                this.size * 0.6 + sway * 0.3,
-                Math.cos(angle) * length * 0.3 + sway * 0.4,
-                this.size * 0.9 + length * 0.4,
+                baseX + sway * 0.18,
+                baseY + sway * 0.28,
+                Math.cos(angle) * length * 0.36 + sway * 0.4,
+                baseY + length * 0.36,
                 Math.cos(angle) * length + sway,
-                this.size * 1.2 + length
+                baseY + length
             );
             ctx.strokeStyle = this.color;
-            ctx.lineWidth = Math.max(1, this.size * 0.06);
+            ctx.lineWidth = Math.max(0.6, this.size * 0.04);
             ctx.lineCap = 'round';
             ctx.stroke();
         }
