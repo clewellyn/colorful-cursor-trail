@@ -10,156 +10,47 @@ const toggleJelly = document.getElementById('toggleJelly');
 // Jellyfish enabled flag
 let jellyEnabled = true;
 
+// global speed factor for jellyfish (gradually increases)
+let speedFactor = 1;
+
 // Jellyfish hit sound element
 const jellySfx = document.getElementById('jellySfx');
-
-function playJellySfx() {
-    if (!jellySfx) return;
-    // Clone the element so multiple hits can overlap
-    try {
-        // cloneNode(true) to copy <source> children as well
-        const s = jellySfx.cloneNode(true);
-        s.volume = volumeSlider ? Number(volumeSlider.value) : 0.5;
-        // slight random pitch so repeated hits feel organic
-        s.playbackRate = 0.92 + Math.random() * 0.16;
-        s.currentTime = 0;
-        // append so some browsers can load/play cloned element
-        document.body.appendChild(s);
-        const playPromise = s.play();
-        if (playPromise && typeof playPromise.catch === 'function') {
-            playPromise.catch(() => {
-                try { s.remove(); } catch (_) {}
-            });
-        }
-        s.onended = () => { try { s.remove(); } catch (_) {} };
-    } catch (e) {
-        // fallback: try playing the original
-        try { jellySfx.currentTime = 0; jellySfx.play().catch(()=>{}); } catch (_) {}
-    }
-}
-
-// Music controls
-toggleMusic.addEventListener('click', () => {
-    if (bgMusic.paused) {
-        bgMusic.play();
-        toggleMusic.textContent = '🔇 Mute Music';
-    } else {
-        bgMusic.pause();
-        toggleMusic.textContent = '🎵 Play Music';
-    }
-});
-
-volumeSlider.addEventListener('input', (e) => {
-    bgMusic.volume = e.target.value;
-});
-
-// Jellyfish toggle button behavior
-if (toggleJelly) {
-    toggleJelly.addEventListener('click', () => {
-        jellyEnabled = !jellyEnabled;
-        toggleJelly.textContent = `🪼 Jellyfish: ${jellyEnabled ? 'On' : 'Off'}`;
-        toggleJelly.classList.toggle('toggled', jellyEnabled);
-        if (!jellyEnabled) {
-            // clear existing jellyfish immediately
-            jellyfish.length = 0;
-            spawnTimer = 0;
-        } else {
-            // spawn one to make it feel responsive
-            spawnJelly();
-        }
-    });
-}
-
-// Set canvas size to window size
-function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-}
-resizeCanvas();
-window.addEventListener('resize', resizeCanvas);
-
-// Particle class (cursor trail)
-class Particle {
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-        this.size = Math.random() * 5 + 2;
-        this.speedX = Math.random() * 2 - 1;
-        this.speedY = Math.random() * 2 - 1;
-        this.color = `hsl(${Math.random() * 360}, 100%, 50%)`;
-    }
-
-    update() {
-        this.x += this.speedX;
-        this.y += this.speedY;
-        if (this.size > 0.2) this.size -= 0.1;
-    }
-
-    draw() {
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
-    }
-}
-
-let particles = [];
-let mouse = { x: null, y: null };
-
-// Track mouse movement
-canvas.addEventListener('mousemove', (event) => {
-    // update mouse position for particle trail only
-    mouse.x = event.clientX;
-    mouse.y = event.clientY;
-    for (let i = 0; i < 5; i++) particles.push(new Particle(mouse.x, mouse.y));
-});
-
-// Only trigger jelly hit on click (user intent)
-canvas.addEventListener('click', (event) => {
-    if (!jellyEnabled) return;
-    const x = event.clientX;
-    const y = event.clientY;
-    // check all jellyfish; stop after first successful hit
-    for (let i = 0; i < jellyfish.length; i++) {
-        const j = jellyfish[i];
-        if (j.disappearing) continue;
-        const dx = j.x - x;
-        const dy = j.y - y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < j.size * 0.9) {
-            j.disappearing = true;
-            j.hit = true;
-            playJellySfx();
-            for (let p = 0; p < 18; p++) {
-                const part = new Particle(j.x, j.y);
-                part.color = j.color.replace(/hsla\(/, 'hsl(').replace(/,\s*0.9\)/, ')');
-                part.size = Math.random() * 4 + 2;
-                const angle = Math.random() * Math.PI * 2;
-                const speed = 1 + Math.random() * 3;
-                part.speedX = Math.cos(angle) * speed;
-                part.speedY = Math.sin(angle) * speed;
-                particles.push(part);
-            }
-            break;
-        }
-    }
-});
-
-// Jellyfish class
 class Jellyfish {
     constructor(side = 'left') {
         this.size = 30 + Math.random() * 40; // body radius
-        this.y = Math.random() * (canvas.height * 0.8) + canvas.height * 0.1;
         this.side = side;
-        this.speed = 0.3 + Math.random() * 0.6; // horizontal speed
-        this.vx = this.side === 'left' ? this.speed : -this.speed;
-        this.x = this.side === 'left' ? -this.size - Math.random() * 100 : canvas.width + this.size + Math.random() * 100;
         this.phase = Math.random() * Math.PI * 2;
+        this.baseSpeed = 0.3 + Math.random() * 0.6; // base movement speed
+        // direction vector
+        this.dirX = 0;
+        this.dirY = 0;
+        // initial position depending on entry side
+        if (side === 'left') {
+            this.x = -this.size - Math.random() * 100;
+            this.y = Math.random() * (canvas.height * 0.8) + canvas.height * 0.1;
+            this.dirX = 1;
+            this.dirY = (Math.random() - 0.5) * 0.4;
+        } else if (side === 'right') {
+            this.x = canvas.width + this.size + Math.random() * 100;
+            this.y = Math.random() * (canvas.height * 0.8) + canvas.height * 0.1;
+            this.dirX = -1;
+            this.dirY = (Math.random() - 0.5) * 0.4;
+        } else if (side === 'top') {
+            this.y = -this.size - Math.random() * 100;
+            this.x = Math.random() * (canvas.width * 0.8) + canvas.width * 0.1;
+            this.dirY = 1;
+            this.dirX = (Math.random() - 0.5) * 0.4;
+        } else { // bottom
+            this.y = canvas.height + this.size + Math.random() * 100;
+            this.x = Math.random() * (canvas.width * 0.8) + canvas.width * 0.1;
+            this.dirY = -1;
+            this.dirX = (Math.random() - 0.5) * 0.4;
+        }
         this.color = `hsla(${Math.floor(Math.random() * 360)}, 70%, 70%, 0.9)`;
         this.tentacles = 4 + Math.floor(Math.random() * 4);
+        this.swaySpeed = 0.01 + Math.random() * 0.02;
         this.age = 0;
         this.maxAge = 400 + Math.random() * 800; // frames
-        this.swaySpeed = 0.01 + Math.random() * 0.02;
         // disappearance state
         this.alpha = 0.95;
         this.disappearing = false;
@@ -167,10 +58,17 @@ class Jellyfish {
     }
 
     update() {
-        this.x += this.vx;
-        // gentle vertical bob using sine
         this.phase += this.swaySpeed;
-        this.y += Math.sin(this.phase) * 0.6;
+        // move according to base direction and global speed factor
+        this.x += this.dirX * this.baseSpeed * speedFactor;
+        this.y += this.dirY * this.baseSpeed * speedFactor;
+        // gentle perpendicular bob
+        const bob = Math.sin(this.phase) * (Math.min(2, this.size * 0.02));
+        if (Math.abs(this.dirX) > Math.abs(this.dirY)) {
+            this.y += bob;
+        } else {
+            this.x += bob;
+        }
         // if in disappearing state, gently shrink and fade
         if (this.disappearing) {
             this.alpha -= 0.02; // fade speed
@@ -222,25 +120,34 @@ class Jellyfish {
     }
 
     isOffScreen() {
-        return (this.x < -this.size - 200 || this.x > canvas.width + this.size + 200 || this.age > this.maxAge);
+        return (
+            this.x < -this.size - 200 ||
+            this.x > canvas.width + this.size + 200 ||
+            this.y < -this.size - 200 ||
+            this.y > canvas.height + this.size + 200 ||
+            this.age > this.maxAge
+        );
     }
 }
-
 let jellyfish = [];
 let spawnTimer = 0;
 const spawnInterval = 240; // in frames (~4s at 60fps)
 
 function spawnJelly() {
-    const side = Math.random() < 0.5 ? 'left' : 'right';
-    if (jellyfish.length < 8) jellyfish.push(new Jellyfish(side));
+    const sides = ['left', 'right', 'top', 'bottom'];
+    const side = sides[Math.floor(Math.random() * sides.length)];
+    if (jellyfish.length < 12) jellyfish.push(new Jellyfish(side));
 }
 
 // initial jellyfish
 if (jellyEnabled) {
-    for (let i = 0; i < 2; i++) spawnJelly();
+    for (let i = 0; i < 3; i++) spawnJelly();
 }
 
 function animate() {
+    // slowly increase global speed factor
+    speedFactor += 0.00002;
+
     // translucent background for trailing effect
     ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
