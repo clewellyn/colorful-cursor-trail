@@ -100,6 +100,10 @@ class Jellyfish {
         this.age = 0;
         this.maxAge = 400 + Math.random() * 800; // frames
         this.swaySpeed = 0.01 + Math.random() * 0.02;
+        // disappearance state
+        this.alpha = 0.95;
+        this.disappearing = false;
+        this.hit = false; // whether already touched by mouse
     }
 
     update() {
@@ -107,11 +111,18 @@ class Jellyfish {
         // gentle vertical bob using sine
         this.phase += this.swaySpeed;
         this.y += Math.sin(this.phase) * 0.6;
+        // if in disappearing state, gently shrink and fade
+        if (this.disappearing) {
+            this.alpha -= 0.02; // fade speed
+            this.size *= 0.985; // shrink a bit
+        }
         this.age++;
     }
 
     draw() {
         ctx.save();
+        // apply per-jellyfish alpha
+        ctx.globalAlpha = this.alpha;
         ctx.translate(this.x, this.y);
 
         // draw bell (body)
@@ -146,6 +157,8 @@ class Jellyfish {
         }
 
         ctx.restore();
+        // restore alpha (in case other drawing expects full alpha)
+        ctx.globalAlpha = 1;
     }
 
     isOffScreen() {
@@ -175,9 +188,35 @@ function animate() {
     // update and draw jellyfish behind particles (if enabled)
     if (jellyEnabled) {
         for (let i = 0; i < jellyfish.length; i++) {
-            jellyfish[i].update();
-            jellyfish[i].draw();
-            if (jellyfish[i].isOffScreen()) {
+            const j = jellyfish[i];
+
+            // mouse collision: soft disappear when touched
+            if (!j.disappearing && mouse.x != null && mouse.y != null) {
+                const dx = j.x - mouse.x;
+                const dy = j.y - mouse.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < j.size * 0.9) {
+                    j.disappearing = true;
+                    j.hit = true;
+                    // create a small burst of particles at jellyfish position
+                    for (let p = 0; p < 18; p++) {
+                        const part = new Particle(j.x, j.y);
+                        // make burst particles match jellyfish color and fly outward
+                        part.color = j.color.replace(/hsla\(/, 'hsl(').replace(/,\s*0.9\)/, ')');
+                        part.size = Math.random() * 4 + 2;
+                        const angle = Math.random() * Math.PI * 2;
+                        const speed = 1 + Math.random() * 3;
+                        part.speedX = Math.cos(angle) * speed;
+                        part.speedY = Math.sin(angle) * speed;
+                        particles.push(part);
+                    }
+                }
+            }
+
+            j.update();
+            j.draw();
+            // remove if fully faded or off-screen
+            if (j.alpha <= 0.03 || j.isOffScreen()) {
                 jellyfish.splice(i, 1);
                 i--;
             }
