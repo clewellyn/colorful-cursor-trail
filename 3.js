@@ -28,6 +28,10 @@ const jellySfx = document.getElementById('jellySfx');
 
 // id counter for debug/logging
 let _jellyIdCounter = 1;
+// Level progression
+let level = 1;
+let poppedCount = 0;
+const popsToNextLevel = 30;
 
 // Settings UI elements (initialized below) - optional if panel not present
 const sensitivityEl = document.getElementById('sensitivity');
@@ -449,6 +453,8 @@ function onCanvasMouseMove(event) {
                 j.hit = true;
                 j.lastHit = now;
                 lastSfxTime = now;
+                // track pops for level progression
+                try { poppedCount++; appendLog('info', `[progress] popped=${poppedCount}/${popsToNextLevel} level=${level}`); } catch (e) {}
                 playJellySfx();
                 for (let p = 0; p < 14; p++) {
                     const part = new Particle(j.x, j.y);
@@ -460,6 +466,8 @@ function onCanvasMouseMove(event) {
                     part.speedY = Math.sin(angle) * speed;
                     particles.push(part);
                 }
+                // if we've reached the pops required, advance level
+                try { if (poppedCount >= popsToNextLevel) { goToNextLevel(); } } catch (e) {}
                 break; // only trigger one jelly per movement
             } else {
                 // suppressed — log why for diagnostics
@@ -688,6 +696,106 @@ class Jellyfish {
     }
 }
 
+// Stingray entity — flatter, faster, and requires the same hit logic
+class Stingray {
+    constructor(side = 'left') {
+        this.size = 18 + Math.random() * 24; // slightly larger base
+        this.wFactor = 1.6 + Math.random() * 0.6; // wide and flat
+        this.hFactor = 0.45 + Math.random() * 0.25; // shallow height
+        this.rotation = (Math.random() - 0.5) * 0.4;
+        this.side = side;
+        this.id = _jellyIdCounter++;
+        this.phase = Math.random() * Math.PI * 2;
+        this.baseSpeed = 0.6 + Math.random() * 0.9; // faster than jelly
+        this.dirX = 0; this.dirY = 0;
+        if (side === 'left') {
+            this.x = -this.size - Math.random() * 120;
+            this.y = Math.random() * (canvas.clientHeight * 0.8) + canvas.clientHeight * 0.1;
+            this.dirX = 1; this.dirY = (Math.random() - 0.5) * 0.25;
+        } else if (side === 'right') {
+            this.x = canvas.clientWidth + this.size + Math.random() * 120;
+            this.y = Math.random() * (canvas.clientHeight * 0.8) + canvas.clientHeight * 0.1;
+            this.dirX = -1; this.dirY = (Math.random() - 0.5) * 0.25;
+        } else if (side === 'top') {
+            this.y = -this.size - Math.random() * 120;
+            this.x = Math.random() * (canvas.clientWidth * 0.8) + canvas.clientWidth * 0.1;
+            this.dirY = 1; this.dirX = (Math.random() - 0.5) * 0.25;
+        } else {
+            this.y = canvas.clientHeight + this.size + Math.random() * 120;
+            this.x = Math.random() * (canvas.clientWidth * 0.8) + canvas.clientWidth * 0.1;
+            this.dirY = -1; this.dirX = (Math.random() - 0.5) * 0.25;
+        }
+        const h = Math.floor(Math.random() * 360);
+        const sat = 40 + Math.floor(Math.random() * 30);
+        const light = 28 + Math.floor(Math.random() * 18);
+        const alpha = 0.9;
+        this.color = `hsla(${h}, ${sat}%, ${light}%, ${alpha})`;
+        this.swaySpeed = 0.008 + Math.random() * 0.01;
+        this.age = 0;
+        this.maxAge = 300 + Math.random() * 700;
+        this.alpha = 0.98;
+        this.disappearing = false;
+        this.hit = false;
+        this.lastHit = 0;
+        this.spawnTime = Date.now();
+    }
+
+    update() {
+        this.phase += this.swaySpeed;
+        this.x += this.dirX * this.baseSpeed * speedFactor;
+        this.y += this.dirY * this.baseSpeed * speedFactor;
+        // subtle undulation
+        const bob = Math.sin(this.phase) * (Math.min(4, this.size * 0.01));
+        if (Math.abs(this.dirX) > Math.abs(this.dirY)) this.y += bob * 0.6; else this.x += bob * 0.6;
+        if (this.disappearing) { this.alpha -= 0.02; this.size *= 0.988; }
+        this.age++;
+    }
+
+    draw() {
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.rotation);
+        const bw = this.size * this.wFactor;
+        const bh = this.size * this.hFactor;
+        // body: flat diamond
+        ctx.beginPath();
+        ctx.moveTo(0, -bh * 0.5);
+        ctx.lineTo(bw * 0.5, 0);
+        ctx.lineTo(0, bh * 0.5);
+        ctx.lineTo(-bw * 0.5, 0);
+        ctx.closePath();
+        const g = ctx.createLinearGradient(-bw * 0.5, 0, bw * 0.5, 0);
+        g.addColorStop(0, this.color);
+        g.addColorStop(1, 'rgba(255,255,255,0.06)');
+        ctx.fillStyle = g;
+        ctx.fill();
+        // tail
+        ctx.beginPath();
+        ctx.moveTo(0, bh * 0.5);
+        ctx.quadraticCurveTo(6, bh * 0.9, 0, bh * 1.8);
+        ctx.quadraticCurveTo(-6, bh * 0.9, 0, bh * 0.5);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+        // subtle outline
+        ctx.lineWidth = Math.max(0.6, this.size * 0.03);
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.stroke();
+        ctx.restore();
+        ctx.globalAlpha = 1;
+    }
+
+    isOffScreen() {
+        return (
+            this.x < -this.size - 200 ||
+            this.x > canvas.clientWidth + this.size + 200 ||
+            this.y < -this.size - 200 ||
+            this.y > canvas.clientHeight + this.size + 200 ||
+            this.age > this.maxAge
+        );
+    }
+}
+
 let jellyfish = [];
 let spawnTimer = 0;
 const spawnInterval = 240; // in frames (~4s at 60fps)
@@ -695,7 +803,22 @@ const spawnInterval = 240; // in frames (~4s at 60fps)
 function spawnJelly() {
     const sides = ['left', 'right', 'top', 'bottom'];
     const side = sides[Math.floor(Math.random() * sides.length)];
-    if (jellyfish.length < maxJelly) jellyfish.push(new Jellyfish(side));
+    if (jellyfish.length < maxJelly) {
+        if (level === 1) jellyfish.push(new Jellyfish(side));
+        else jellyfish.push(new Stingray(side));
+    }
+}
+
+function goToNextLevel() {
+    level++;
+    appendLog('info', `[level] advancing to level ${level}`);
+    showToast(`Level ${level}: Now popping ${level === 2 ? 'Stingrays' : 'next creatures'}`, 2500, 'success');
+    // clear existing entities and reset counters
+    jellyfish.length = 0;
+    poppedCount = 0;
+    spawnTimer = 0;
+    // spawn initial set for new level
+    for (let i = 0; i < 3; i++) spawnJelly();
 }
 
 // initial jellyfish
