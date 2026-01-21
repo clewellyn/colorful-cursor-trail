@@ -26,6 +26,74 @@ const maxJelly = 12; // maximum simultaneous jellyfish
 // Jellyfish hit sound element
 const jellySfx = document.getElementById('jellySfx');
 
+// Underwater FX (optional, disabled by default). We'll create a guarded WebAudio chain when enabled.
+const underwaterToggleEl = document.getElementById('underwaterFx');
+let _audioCtx = null;
+let _mediaSrc = null;
+let _lpFilter = null;
+let _wetGain = null;
+function initUnderwaterAudio() {
+    try {
+        if (_audioCtx) return;
+        if (!(window.AudioContext || window.webkitAudioContext)) return;
+        _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        // create nodes
+        _lpFilter = _audioCtx.createBiquadFilter();
+        _lpFilter.type = 'lowpass';
+        _lpFilter.frequency.value = 900; // gentle low-pass to create muffled/underwater tone
+        _lpFilter.Q.value = 0.8;
+        _wetGain = _audioCtx.createGain();
+        _wetGain.gain.value = 0.90;
+        // create source node from the music element when needed (do not create multiple times)
+        try {
+            _mediaSrc = _audioCtx.createMediaElementSource(bgMusic);
+            // initially connect directly (dry path) — enabling will re-route through filter
+            _mediaSrc.connect(_audioCtx.destination);
+        } catch (e) {
+            // some browsers disallow multiple MediaElementSource creations; ignore safely
+            _mediaSrc = null;
+        }
+    } catch (e) {}
+}
+
+function setUnderwaterEnabled(enabled) {
+    try {
+        if (!(_audioCtx)) initUnderwaterAudio();
+        if (!(_audioCtx && _mediaSrc && _lpFilter && _wetGain)) return;
+        // ensure audio context is running
+        try { _audioCtx.resume().catch(()=>{}); } catch (e) {}
+        // safely disconnect previous graph
+        try { _mediaSrc.disconnect(); } catch (e) {}
+        try { _lpFilter.disconnect(); } catch (e) {}
+        try { _wetGain.disconnect(); } catch (e) {}
+
+        if (enabled) {
+            // route through lowpass -> wetGain -> destination
+            _mediaSrc.connect(_lpFilter);
+            _lpFilter.connect(_wetGain);
+            _wetGain.connect(_audioCtx.destination);
+            appendLog('info', '[audio] underwater FX enabled');
+        } else {
+            // revert to direct (dry) path
+            _mediaSrc.connect(_audioCtx.destination);
+            appendLog('info', '[audio] underwater FX disabled');
+        }
+    } catch (e) {}
+}
+
+// wire underwater toggle if present
+if (underwaterToggleEl) {
+    try {
+        underwaterToggleEl.checked = false;
+        underwaterToggleEl.addEventListener('change', (ev) => {
+            // ensure user gesture unlocks audio
+            try { unlockAudio(); } catch (e) {}
+            setUnderwaterEnabled(ev.target.checked);
+            showToast(ev.target.checked ? 'Underwater FX enabled' : 'Underwater FX disabled', 1200, 'info');
+        });
+    } catch (e) {}
+}
+
 // id counter for debug/logging
 let _jellyIdCounter = 1;
 // Level progression
@@ -131,6 +199,35 @@ function updateHUD() {
             barFill.style.width = pct + '%';
         }
     } catch (e) {}
+}
+
+// small HUD pop animation when an enemy is popped
+function animateHudPop() {
+    try {
+        const bar = document.getElementById('hud-bar-fill');
+        if (!bar) return;
+        bar.classList.add('pop');
+        setTimeout(() => { try { bar.classList.remove('pop'); } catch (e) {} }, 520);
+    } catch (e) {}
+}
+
+// create a centered level transition overlay and call callback after animation completes
+function createLevelTransition(text, cb) {
+    try {
+        const el = document.createElement('div');
+        el.className = 'level-transition';
+        el.innerHTML = `<div class="lt-main">${text}</div><span class="lt-sub">Prepare to pop!</span>`;
+        document.body.appendChild(el);
+        // force layout then show
+        requestAnimationFrame(() => { el.classList.add('show'); });
+        // after animation completes, hide and callback
+        setTimeout(() => {
+            try { el.classList.remove('show'); } catch (e) {}
+            setTimeout(() => { try { el.remove(); } catch (e) {};
+                try { if (typeof cb === 'function') cb(); } catch (ex) {}
+            }, 300);
+        }, 1100);
+    } catch (e) { if (typeof cb === 'function') cb(); }
 }
 
 // create HUD on load
@@ -489,7 +586,7 @@ function onCanvasMouseMove(event) {
                 j.lastHit = now;
                 lastSfxTime = now;
                 // track pops for level progression
-                try { poppedCount++; appendLog('info', `[progress] popped=${poppedCount}/${popsToNextLevel} level=${level}`); } catch (e) {}
+                try { poppedCount++; appendLog('info', `[progress] popped=${poppedCount}/${popsToNextLevel} level=${level}`); updateHUD(); animateHudPop(); } catch (e) {}
                 playJellySfx();
                 for (let p = 0; p < 14; p++) {
                     const part = new Particle(j.x, j.y);
@@ -501,7 +598,7 @@ function onCanvasMouseMove(event) {
                     part.speedY = Math.sin(angle) * speed;
                     particles.push(part);
                 }
-                // if we've reached the pops required, advance level
+                // if we've reached the pops required, advance level (with a transition)
                 try { if (poppedCount >= popsToNextLevel) { goToNextLevel(); } } catch (e) {}
                 break; // only trigger one jelly per movement
             } else {
@@ -845,15 +942,22 @@ function spawnJelly() {
 }
 
 function goToNextLevel() {
-    level++;
-    appendLog('info', `[level] advancing to level ${level}`);
-    showToast(`Level ${level}: Now popping ${level === 2 ? 'Stingrays' : 'next creatures'}`, 2500, 'success');
-    // clear existing entities and reset counters
-    jellyfish.length = 0;
-    poppedCount = 0;
-    spawnTimer = 0;
-    // spawn initial set for new level
-    for (let i = 0; i < 3; i++) spawnJelly();
+    // show a centered transition banner, then actually advance level and respawn
+    const nextLevel = level + 1;
+    createLevelTransition(`Level ${nextLevel}`, () => {
+        try {
+            level = nextLevel;
+            appendLog('info', `[level] advancing to level ${level}`);
+            showToast(`Level ${level}: Now popping ${level === 2 ? 'Stingrays' : 'next creatures'}`, 2200, 'success');
+            // clear existing entities and reset counters
+            jellyfish.length = 0;
+            poppedCount = 0;
+            spawnTimer = 0;
+            // spawn initial set for new level
+            for (let i = 0; i < 3; i++) spawnJelly();
+            updateHUD();
+        } catch (e) {}
+    });
 }
 
 // initial jellyfish
