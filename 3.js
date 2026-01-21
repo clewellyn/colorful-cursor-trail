@@ -102,6 +102,41 @@ function initSettingsUI() {
 // initialize (if panel exists)
 initSettingsUI();
 
+// HUD: create and update on-screen level/progress indicator
+function createHUD() {
+    try {
+        let h = document.querySelector('.game-hud');
+        if (!h) {
+            h = document.createElement('div');
+            h.className = 'game-hud';
+            h.innerHTML = `
+                <div class="hud-row"><span class="hud-label">Level</span><span id="hud-level" class="hud-value">${level}</span></div>
+                <div class="hud-row"><span class="hud-label">Popped</span><span id="hud-popped" class="hud-value">${poppedCount}/${popsToNextLevel}</span></div>
+                <div class="hud-bar"><div id="hud-bar-fill" class="hud-bar-fill" style="width:0%"></div></div>
+            `;
+            document.body.appendChild(h);
+        }
+    } catch (e) {}
+}
+
+function updateHUD() {
+    try {
+        const levelEl = document.getElementById('hud-level');
+        const poppedEl = document.getElementById('hud-popped');
+        const barFill = document.getElementById('hud-bar-fill');
+        if (levelEl) levelEl.textContent = String(level);
+        if (poppedEl) poppedEl.textContent = `${poppedCount}/${popsToNextLevel}`;
+        if (barFill) {
+            const pct = Math.min(100, Math.round((poppedCount / popsToNextLevel) * 100));
+            barFill.style.width = pct + '%';
+        }
+    } catch (e) {}
+}
+
+// create HUD on load
+createHUD();
+updateHUD();
+
 // Reset settings to sensible defaults and update UI/localStorage
 function resetSettingsToDefaults() {
     const defaults = { movementThreshold: 2.5, requireDotThreshold: 0.2, globalCooldown: 220 };
