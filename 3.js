@@ -831,14 +831,17 @@ class Jellyfish {
 // Stingray entity — flatter, faster, and requires the same hit logic
 class Stingray {
     constructor(side = 'left') {
-        this.size = 18 + Math.random() * 24; // slightly larger base
-        this.wFactor = 1.6 + Math.random() * 0.6; // wide and flat
-        this.hFactor = 0.45 + Math.random() * 0.25; // shallow height
-        this.rotation = (Math.random() - 0.5) * 0.4;
+        // make sizes more varied (some smaller, some much larger)
+        this.size = 12 + Math.random() * 40; // 12..52
+        // wider and flatter variation
+        this.wFactor = 1.2 + Math.random() * 1.2; // wider range
+        this.hFactor = 0.35 + Math.random() * 0.35; // shallow height
+        this.rotation = (Math.random() - 0.5) * 0.35;
         this.side = side;
         this.id = _jellyIdCounter++;
         this.phase = Math.random() * Math.PI * 2;
-        this.baseSpeed = 0.6 + Math.random() * 0.9; // faster than jelly
+        // make stingrays slower and more fluid than before; baseSpeed tuned to be gentler
+        this.baseSpeed = 0.16 + Math.random() * 0.46; // ~0.16..0.62 (slower than previous)
         this.dirX = 0; this.dirY = 0;
         if (side === 'left') {
             this.x = -this.size - Math.random() * 120;
@@ -862,7 +865,9 @@ class Stingray {
         const light = 28 + Math.floor(Math.random() * 18);
         const alpha = 0.9;
         this.color = `hsla(${h}, ${sat}%, ${light}%, ${alpha})`;
-        this.swaySpeed = 0.008 + Math.random() * 0.01;
+        // make the sway a bit faster and with a larger amplitude for a wavy, fluid motion
+        this.swaySpeed = 0.014 + Math.random() * 0.02;
+        this.swayAmp = 0.9 + Math.random() * 1.5; // amplitude multiplier for undulation
         this.age = 0;
         this.maxAge = 300 + Math.random() * 700;
         this.alpha = 0.98;
@@ -874,12 +879,12 @@ class Stingray {
 
     update() {
         this.phase += this.swaySpeed;
-        this.x += this.dirX * this.baseSpeed * speedFactor;
-        this.y += this.dirY * this.baseSpeed * speedFactor;
-        // subtle undulation
-        const bob = Math.sin(this.phase) * (Math.min(4, this.size * 0.01));
-        if (Math.abs(this.dirX) > Math.abs(this.dirY)) this.y += bob * 0.6; else this.x += bob * 0.6;
-        if (this.disappearing) { this.alpha -= 0.02; this.size *= 0.988; }
+        // smoother, more sinuous motion - apply base movement and a larger perpendicular undulation
+        const undulation = Math.sin(this.phase * (1.2 + this.wFactor * 0.2)) * (2 + this.size * 0.03) * this.swayAmp;
+        this.x += this.dirX * this.baseSpeed * speedFactor + (Math.abs(this.dirY) > Math.abs(this.dirX) ? undulation * 0.2 : 0);
+        this.y += this.dirY * this.baseSpeed * speedFactor + (Math.abs(this.dirX) > Math.abs(this.dirY) ? undulation * 0.6 : undulation * 0.35);
+        // gentle size/alpha changes when disappearing
+        if (this.disappearing) { this.alpha -= 0.02; this.size *= 0.989; }
         this.age++;
     }
 
@@ -890,29 +895,39 @@ class Stingray {
         ctx.rotate(this.rotation);
         const bw = this.size * this.wFactor;
         const bh = this.size * this.hFactor;
-        // body: flat diamond
-        ctx.beginPath();
-        ctx.moveTo(0, -bh * 0.5);
-        ctx.lineTo(bw * 0.5, 0);
-        ctx.lineTo(0, bh * 0.5);
-        ctx.lineTo(-bw * 0.5, 0);
-        ctx.closePath();
+        // undulation amount for visual deformation
+        const und = Math.sin(this.phase * 1.8) * (1.5 + this.size * 0.02) * this.swayAmp;
+
+        // body: smooth ellipse but slightly deformed by undulation for a fluid look
         const g = ctx.createLinearGradient(-bw * 0.5, 0, bw * 0.5, 0);
         g.addColorStop(0, this.color);
         g.addColorStop(1, 'rgba(255,255,255,0.06)');
         ctx.fillStyle = g;
-        ctx.fill();
-        // tail
         ctx.beginPath();
-        ctx.moveTo(0, bh * 0.5);
-        ctx.quadraticCurveTo(6, bh * 0.9, 0, bh * 1.8);
-        ctx.quadraticCurveTo(-6, bh * 0.9, 0, bh * 0.5);
+        ctx.ellipse(0, 0, bw, Math.max(2, bh + und * 0.35), 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // slight top ridge and bottom curve to imply undulating wing edges
+        ctx.lineWidth = Math.max(0.5, this.size * 0.02);
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        // top curve
+        ctx.beginPath();
+        ctx.moveTo(-bw * 0.55, -und * 0.4);
+        ctx.quadraticCurveTo(0, -bh * 0.55 - und * 0.8, bw * 0.55, -und * 0.4);
+        ctx.stroke();
+        // bottom curve
+        ctx.beginPath();
+        ctx.moveTo(-bw * 0.55, und * 0.3 + bh * 0.08);
+        ctx.quadraticCurveTo(0, bh * 0.6 + und * 0.9, bw * 0.55, und * 0.3 + bh * 0.08);
+        ctx.stroke();
+
+        // tail: smoother and slightly waving
+        ctx.beginPath();
+        ctx.moveTo(0, bh * 0.55 + und * 0.2);
+        ctx.quadraticCurveTo(bw * 0.18, bh * 0.95 + und * 0.9, 0, bh * 1.6 + und * 1.1);
+        ctx.quadraticCurveTo(-bw * 0.18, bh * 0.95 + und * 0.9, 0, bh * 0.55 + und * 0.2);
         ctx.fillStyle = this.color;
         ctx.fill();
-        // subtle outline
-        ctx.lineWidth = Math.max(0.6, this.size * 0.03);
-        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-        ctx.stroke();
         ctx.restore();
         ctx.globalAlpha = 1;
     }
