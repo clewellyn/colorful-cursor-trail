@@ -921,13 +921,32 @@ class Stingray {
         ctx.quadraticCurveTo(0, bh * 0.6 + und * 0.9, bw * 0.55, und * 0.3 + bh * 0.08);
         ctx.stroke();
 
-        // tail: smoother and slightly waving
-        ctx.beginPath();
-        ctx.moveTo(0, bh * 0.55 + und * 0.2);
-        ctx.quadraticCurveTo(bw * 0.18, bh * 0.95 + und * 0.9, 0, bh * 1.6 + und * 1.1);
-        ctx.quadraticCurveTo(-bw * 0.18, bh * 0.95 + und * 0.9, 0, bh * 0.55 + und * 0.2);
-        ctx.fillStyle = this.color;
-        ctx.fill();
+        // tail: choose shape by level - longer triangular tail on level 2, otherwise a smoother waving tail
+        if (typeof level !== 'undefined' && level === 2) {
+            // long triangular tail for stingrays on level 2
+            ctx.beginPath();
+            ctx.moveTo(0, bh * 0.55 + und * 0.2);
+            // extend the tail further back for a more pronounced triangle
+            const tailBack = Math.max(bw * 1.0, bw * 0.9 + this.size * 0.6);
+            const tailY = bh * 2.6 + und * 1.6;
+            ctx.lineTo(tailBack, tailY);
+            ctx.lineTo(-tailBack, tailY);
+            ctx.closePath();
+            ctx.fillStyle = this.color;
+            ctx.fill();
+            // subtle outline for the triangular tail
+            ctx.lineWidth = Math.max(0.4, this.size * 0.016);
+            ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+            ctx.stroke();
+        } else {
+            // default: smoother and slightly waving tail
+            ctx.beginPath();
+            ctx.moveTo(0, bh * 0.55 + und * 0.2);
+            ctx.quadraticCurveTo(bw * 0.18, bh * 0.95 + und * 0.9, 0, bh * 1.6 + und * 1.1);
+            ctx.quadraticCurveTo(-bw * 0.18, bh * 0.95 + und * 0.9, 0, bh * 0.55 + und * 0.2);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+        }
         ctx.restore();
         ctx.globalAlpha = 1;
     }
