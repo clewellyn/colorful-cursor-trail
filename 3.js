@@ -963,56 +963,64 @@ class Stingray {
 
         // tail: choose shape by level - longer triangular tail on level 2, otherwise a smoother waving tail
         if (typeof level !== 'undefined' && level === 2) {
-            // long triangular tail for stingrays on level 2
+            // long, narrow 'icicle' triangular tail for stingrays on level 2
             ctx.beginPath();
-            ctx.moveTo(0, bh * 0.55 + und * 0.2);
-            // extend the tail further back for a more pronounced triangle
-            const tailBack = Math.max(bw * 1.0, bw * 0.9 + this.size * 0.6);
-            const tailY = bh * 2.6 + und * 1.6;
-            ctx.lineTo(tailBack, tailY);
-            ctx.lineTo(-tailBack, tailY);
+            // base point near the body
+            const baseY = bh * 0.55 + und * 0.2;
+            // make the base narrow relative to body width
+            const baseHalf = Math.max(3, Math.min(bw * 0.28, this.size * 0.42));
+            // extend the tip much further back (longer tail)
+            const tipY = baseY + Math.max(this.size * 2.2, bh * 2.8) + Math.abs(und) * 0.9;
+            // draw narrow triangle with tip centered below the body
+            ctx.moveTo(-baseHalf, baseY);
+            ctx.lineTo(0, tipY);
+            ctx.lineTo(baseHalf, baseY);
             ctx.closePath();
             ctx.fillStyle = this.color;
             ctx.fill();
             // subtle outline for the triangular tail
-            ctx.lineWidth = Math.max(0.4, this.size * 0.016);
+            ctx.lineWidth = Math.max(0.3, this.size * 0.014);
             ctx.strokeStyle = 'rgba(255,255,255,0.04)';
             ctx.stroke();
-            // compute tail tip (center of triangle) in local coords and optionally emit bubbles
+            // compute tail tip (local coords) and emit bubbles from the tip
             try {
-                const tailTipLocal = { x: 0, y: tailY };
+                const tailTipLocal = { x: 0, y: tipY };
                 const worldX = this.x + Math.cos(this.rotation) * tailTipLocal.x - Math.sin(this.rotation) * tailTipLocal.y;
                 const worldY = this.y + Math.sin(this.rotation) * tailTipLocal.x + Math.cos(this.rotation) * tailTipLocal.y;
                 const now = Date.now();
-                if ((now - this._lastBubbleTime) > this._bubbleInterval && Math.random() < 0.9) {
+                if ((now - this._lastBubbleTime) > this._bubbleInterval && Math.random() < 0.92) {
                     this._lastBubbleTime = now;
-                    // spawn 1-3 small bubbles
                     const count = 1 + Math.floor(Math.random() * 3);
                     for (let b = 0; b < count; b++) {
-                        const bx = worldX + (Math.random() - 0.5) * Math.max(6, this.size * 0.12);
-                        const by = worldY + (Math.random() - 0.2) * Math.max(6, this.size * 0.12);
+                        const bx = worldX + (Math.random() - 0.5) * Math.max(4, this.size * 0.08);
+                        const by = worldY + (Math.random() - 0.1) * Math.max(4, this.size * 0.08);
                         particles.push(new Bubble(bx, by));
                     }
                 }
             } catch (e) {}
         } else {
-            // default: smoother and slightly waving tail
+            // default: longer and narrower tail (icicle-like) but keep a slight curve
+            const baseY = bh * 0.55 + und * 0.2;
+            const baseHalf = Math.max(3, Math.min(bw * 0.22, this.size * 0.36));
+            const tipY = baseY + Math.max(this.size * 1.8, bh * 2.0) + Math.abs(und) * 0.6;
+            // draw two thin quadratic sides meeting at a far tip to give a tapered look
             ctx.beginPath();
-            ctx.moveTo(0, bh * 0.55 + und * 0.2);
-            ctx.quadraticCurveTo(bw * 0.18, bh * 0.95 + und * 0.9, 0, bh * 1.6 + und * 1.1);
-            ctx.quadraticCurveTo(-bw * 0.18, bh * 0.95 + und * 0.9, 0, bh * 0.55 + und * 0.2);
+            ctx.moveTo(-baseHalf, baseY);
+            ctx.quadraticCurveTo(-baseHalf * 0.2, (baseY + tipY) * 0.45, 0, tipY);
+            ctx.quadraticCurveTo(baseHalf * 0.2, (baseY + tipY) * 0.45, baseHalf, baseY);
+            ctx.closePath();
             ctx.fillStyle = this.color;
             ctx.fill();
-            // spawn occasional small bubbles from waving tail tip too (less frequently)
+            // occasional small bubbles from the narrow tip (less frequently)
             try {
-                const tailTipLocal = { x: 0, y: bh * 1.6 + und * 1.1 };
+                const tailTipLocal = { x: 0, y: tipY };
                 const worldX = this.x + Math.cos(this.rotation) * tailTipLocal.x - Math.sin(this.rotation) * tailTipLocal.y;
                 const worldY = this.y + Math.sin(this.rotation) * tailTipLocal.x + Math.cos(this.rotation) * tailTipLocal.y;
                 const now = Date.now();
                 if ((now - this._lastBubbleTime) > (this._bubbleInterval * 1.6) && Math.random() < 0.45) {
                     this._lastBubbleTime = now;
-                    const bx = worldX + (Math.random() - 0.5) * Math.max(4, this.size * 0.08);
-                    const by = worldY + (Math.random() - 0.2) * Math.max(4, this.size * 0.08);
+                    const bx = worldX + (Math.random() - 0.5) * Math.max(3, this.size * 0.06);
+                    const by = worldY + (Math.random() - 0.2) * Math.max(3, this.size * 0.06);
                     particles.push(new Bubble(bx, by));
                 }
             } catch (e) {}
