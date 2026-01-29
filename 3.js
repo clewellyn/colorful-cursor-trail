@@ -486,6 +486,43 @@ class Particle {
     }
 }
 
+// Bubble particle emitted from tails — rises and fades
+class Bubble {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.size = 2 + Math.random() * 3;
+        this.speedX = (Math.random() * 0.6 - 0.3) * 0.4;
+        // bubbles drift upward
+        this.speedY = - (0.3 + Math.random() * 0.9);
+        this.alpha = 0.9 + Math.random() * 0.08;
+        this.life = 600 + Math.random() * 900; // ms
+        this.birth = Date.now();
+        this.color = `rgba(220,245,255,${0.9 + Math.random() * 0.1})`;
+    }
+
+    update() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+        // gentle slow rise and fade
+        const age = Date.now() - this.birth;
+        this.alpha = Math.max(0, 1 - age / this.life);
+        this.size *= 0.999;
+    }
+
+    draw() {
+        try {
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, this.alpha * 0.95);
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, Math.max(0.6, this.size), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        } catch (e) {}
+    }
+}
+
 let particles = [];
 let mouse = { x: null, y: null };
 let prevMouse = { x: null, y: null };
@@ -875,6 +912,9 @@ class Stingray {
         this.hit = false;
         this.lastHit = 0;
         this.spawnTime = Date.now();
+        // bubble emission control
+        this._lastBubbleTime = Date.now() - (Math.random() * 800);
+        this._bubbleInterval = 360 + Math.random() * 980; // ms between bubble spawns (varies per ray)
     }
 
     update() {
@@ -938,6 +978,23 @@ class Stingray {
             ctx.lineWidth = Math.max(0.4, this.size * 0.016);
             ctx.strokeStyle = 'rgba(255,255,255,0.04)';
             ctx.stroke();
+            // compute tail tip (center of triangle) in local coords and optionally emit bubbles
+            try {
+                const tailTipLocal = { x: 0, y: tailY };
+                const worldX = this.x + Math.cos(this.rotation) * tailTipLocal.x - Math.sin(this.rotation) * tailTipLocal.y;
+                const worldY = this.y + Math.sin(this.rotation) * tailTipLocal.x + Math.cos(this.rotation) * tailTipLocal.y;
+                const now = Date.now();
+                if ((now - this._lastBubbleTime) > this._bubbleInterval && Math.random() < 0.9) {
+                    this._lastBubbleTime = now;
+                    // spawn 1-3 small bubbles
+                    const count = 1 + Math.floor(Math.random() * 3);
+                    for (let b = 0; b < count; b++) {
+                        const bx = worldX + (Math.random() - 0.5) * Math.max(6, this.size * 0.12);
+                        const by = worldY + (Math.random() - 0.2) * Math.max(6, this.size * 0.12);
+                        particles.push(new Bubble(bx, by));
+                    }
+                }
+            } catch (e) {}
         } else {
             // default: smoother and slightly waving tail
             ctx.beginPath();
@@ -946,6 +1003,19 @@ class Stingray {
             ctx.quadraticCurveTo(-bw * 0.18, bh * 0.95 + und * 0.9, 0, bh * 0.55 + und * 0.2);
             ctx.fillStyle = this.color;
             ctx.fill();
+            // spawn occasional small bubbles from waving tail tip too (less frequently)
+            try {
+                const tailTipLocal = { x: 0, y: bh * 1.6 + und * 1.1 };
+                const worldX = this.x + Math.cos(this.rotation) * tailTipLocal.x - Math.sin(this.rotation) * tailTipLocal.y;
+                const worldY = this.y + Math.sin(this.rotation) * tailTipLocal.x + Math.cos(this.rotation) * tailTipLocal.y;
+                const now = Date.now();
+                if ((now - this._lastBubbleTime) > (this._bubbleInterval * 1.6) && Math.random() < 0.45) {
+                    this._lastBubbleTime = now;
+                    const bx = worldX + (Math.random() - 0.5) * Math.max(4, this.size * 0.08);
+                    const by = worldY + (Math.random() - 0.2) * Math.max(4, this.size * 0.08);
+                    particles.push(new Bubble(bx, by));
+                }
+            } catch (e) {}
         }
         ctx.restore();
         ctx.globalAlpha = 1;
