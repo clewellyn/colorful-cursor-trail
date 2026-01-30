@@ -32,23 +32,32 @@ let _audioCtx = null;
 let _mediaSrc = null;
 let _lpFilter = null;
 let _wetGain = null;
+let _dryGain = null;
 function initUnderwaterAudio() {
     try {
         if (_audioCtx) return;
         if (!(window.AudioContext || window.webkitAudioContext)) return;
         _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        // create nodes
+        // create nodes: dry gain (direct) + lowpass -> wet gain
+        _dryGain = _audioCtx.createGain();
+        _dryGain.gain.value = 1.0; // by default play dry
         _lpFilter = _audioCtx.createBiquadFilter();
         _lpFilter.type = 'lowpass';
         _lpFilter.frequency.value = 900; // gentle low-pass to create muffled/underwater tone
         _lpFilter.Q.value = 0.8;
         _wetGain = _audioCtx.createGain();
-        _wetGain.gain.value = 0.90;
+        _wetGain.gain.value = 0.0; // start muted (effect off)
+
         // create source node from the music element when needed (do not create multiple times)
         try {
             _mediaSrc = _audioCtx.createMediaElementSource(bgMusic);
-            // initially connect directly (dry path) — enabling will re-route through filter
-            _mediaSrc.connect(_audioCtx.destination);
+            // route: media -> dryGain -> destination
+            _mediaSrc.connect(_dryGain);
+            _dryGain.connect(_audioCtx.destination);
+            // and media -> lpFilter -> wetGain -> destination (wet path)
+            _mediaSrc.connect(_lpFilter);
+            _lpFilter.connect(_wetGain);
+            _wetGain.connect(_audioCtx.destination);
         } catch (e) {
             // some browsers disallow multiple MediaElementSource creations; ignore safely
             _mediaSrc = null;
@@ -59,23 +68,26 @@ function initUnderwaterAudio() {
 function setUnderwaterEnabled(enabled) {
     try {
         if (!(_audioCtx)) initUnderwaterAudio();
-        if (!(_audioCtx && _mediaSrc && _lpFilter && _wetGain)) return;
+        if (!(_audioCtx && _mediaSrc && _lpFilter && _wetGain && _dryGain)) return;
         // ensure audio context is running
         try { _audioCtx.resume().catch(()=>{}); } catch (e) {}
-        // safely disconnect previous graph
-        try { _mediaSrc.disconnect(); } catch (e) {}
-        try { _lpFilter.disconnect(); } catch (e) {}
-        try { _wetGain.disconnect(); } catch (e) {}
-
         if (enabled) {
-            // route through lowpass -> wetGain -> destination
-            _mediaSrc.connect(_lpFilter);
-            _lpFilter.connect(_wetGain);
-            _wetGain.connect(_audioCtx.destination);
+            // fade into wet (muffled) sound and reduce dry slightly
+            _wetGain.gain.cancelScheduledValues(_audioCtx.currentTime);
+            _dryGain.gain.cancelScheduledValues(_audioCtx.currentTime);
+            _wetGain.gain.setValueAtTime(_wetGain.gain.value, _audioCtx.currentTime);
+            _dryGain.gain.setValueAtTime(_dryGain.gain.value, _audioCtx.currentTime);
+            _wetGain.gain.linearRampToValueAtTime(0.9, _audioCtx.currentTime + 0.35);
+            _dryGain.gain.linearRampToValueAtTime(0.25, _audioCtx.currentTime + 0.35);
             appendLog('info', '[audio] underwater FX enabled');
         } else {
-            // revert to direct (dry) path
-            _mediaSrc.connect(_audioCtx.destination);
+            // fade out wet and restore dry
+            _wetGain.gain.cancelScheduledValues(_audioCtx.currentTime);
+            _dryGain.gain.cancelScheduledValues(_audioCtx.currentTime);
+            _wetGain.gain.setValueAtTime(_wetGain.gain.value, _audioCtx.currentTime);
+            _dryGain.gain.setValueAtTime(_dryGain.gain.value, _audioCtx.currentTime);
+            _wetGain.gain.linearRampToValueAtTime(0.0, _audioCtx.currentTime + 0.35);
+            _dryGain.gain.linearRampToValueAtTime(1.0, _audioCtx.currentTime + 0.35);
             appendLog('info', '[audio] underwater FX disabled');
         }
     } catch (e) {}
