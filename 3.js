@@ -26,115 +26,6 @@ const maxJelly = 12; // maximum simultaneous jellyfish
 // Jellyfish hit sound element
 const jellySfx = document.getElementById('jellySfx');
 
-// Underwater FX (optional, disabled by default). We'll create a guarded WebAudio chain when enabled.
-const underwaterToggleEl = document.getElementById('underwaterFx');
-let _audioCtx = null;
-let _mediaSrc = null;
-let _lpFilter = null;
-let _wetGain = null;
-let _dryGain = null;
-let _useFallback = false;
-let _bgOriginalVolume = null;
-function initUnderwaterAudio() {
-    try {
-        if (_audioCtx) return;
-        if (!(window.AudioContext || window.webkitAudioContext)) return;
-        _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        // create nodes: dry gain (direct) + lowpass -> wet gain
-        _dryGain = _audioCtx.createGain();
-        _dryGain.gain.value = 1.0; // by default play dry
-        _lpFilter = _audioCtx.createBiquadFilter();
-        _lpFilter.type = 'lowpass';
-        _lpFilter.frequency.value = 900; // gentle low-pass to create muffled/underwater tone
-        _lpFilter.Q.value = 0.8;
-        _wetGain = _audioCtx.createGain();
-        _wetGain.gain.value = 0.0; // start muted (effect off)
-
-        // create source node from the music element when needed (do not create multiple times)
-        try {
-            _mediaSrc = _audioCtx.createMediaElementSource(bgMusic);
-            // route: media -> dryGain -> destination
-            _mediaSrc.connect(_dryGain);
-            _dryGain.connect(_audioCtx.destination);
-            // and media -> lpFilter -> wetGain -> destination (wet path)
-            _mediaSrc.connect(_lpFilter);
-            _lpFilter.connect(_wetGain);
-            _wetGain.connect(_audioCtx.destination);
-            // ensure the audio context is running
-            try { _audioCtx.resume().catch(()=>{}); } catch (e) {}
-        } catch (e) {
-            // some browsers disallow multiple MediaElementSource creations; ignore safely
-            _mediaSrc = null;
-            _useFallback = true; // mark that we should fallback to volume-only behavior
-        }
-    } catch (e) {}
-}
-
-function setUnderwaterEnabled(enabled) {
-    try {
-        if (!(_audioCtx)) initUnderwaterAudio();
-        if (!(_audioCtx && _mediaSrc && _lpFilter && _wetGain && _dryGain)) {
-            // fallback: adjust bgMusic.volume smoothly if we cannot create a MediaElementSource
-            if (_useFallback && bgMusic) {
-                try {
-                    if (_bgOriginalVolume === null) _bgOriginalVolume = Number(bgMusic.volume) || 0.5;
-                    const target = enabled ? 0.25 : _bgOriginalVolume;
-                    const start = Number(bgMusic.volume) || 0.0;
-                    const dur = 350; // ms
-                    const steps = 12;
-                    const stepMs = Math.max(8, Math.floor(dur / steps));
-                    const delta = (target - start) / steps;
-                    let s = 0;
-                    const iv = setInterval(() => {
-                        s++;
-                        try { bgMusic.volume = Math.min(1, Math.max(0, start + delta * s)); } catch (e) {}
-                        if (s >= steps) clearInterval(iv);
-                    }, stepMs);
-                    appendLog('info', `[audio-fallback] underwater ${enabled ? 'enabled' : 'disabled'} volume faded to ${target}`);
-                    return;
-                } catch (e) { return; }
-            }
-            return;
-        }
-        // ensure audio context is running
-        try { _audioCtx.resume().catch(()=>{}); } catch (e) {}
-        if (enabled) {
-            // fade into wet (muffled) sound and reduce dry slightly
-            _wetGain.gain.cancelScheduledValues(_audioCtx.currentTime);
-            _dryGain.gain.cancelScheduledValues(_audioCtx.currentTime);
-            _wetGain.gain.setValueAtTime(_wetGain.gain.value, _audioCtx.currentTime);
-            _dryGain.gain.setValueAtTime(_dryGain.gain.value, _audioCtx.currentTime);
-            _wetGain.gain.linearRampToValueAtTime(0.9, _audioCtx.currentTime + 0.35);
-            _dryGain.gain.linearRampToValueAtTime(0.25, _audioCtx.currentTime + 0.35);
-            appendLog('info', '[audio] underwater FX enabled');
-            // ensure music is playing after routing (some browsers require explicit play)
-            try { bgMusic.play().catch(()=>{}); } catch (e) {}
-        } else {
-            // fade out wet and restore dry
-            _wetGain.gain.cancelScheduledValues(_audioCtx.currentTime);
-            _dryGain.gain.cancelScheduledValues(_audioCtx.currentTime);
-            _wetGain.gain.setValueAtTime(_wetGain.gain.value, _audioCtx.currentTime);
-            _dryGain.gain.setValueAtTime(_dryGain.gain.value, _audioCtx.currentTime);
-            _wetGain.gain.linearRampToValueAtTime(0.0, _audioCtx.currentTime + 0.35);
-            _dryGain.gain.linearRampToValueAtTime(1.0, _audioCtx.currentTime + 0.35);
-            appendLog('info', '[audio] underwater FX disabled');
-            try { bgMusic.play().catch(()=>{}); } catch (e) {}
-        }
-    } catch (e) {}
-}
-
-// wire underwater toggle if present
-if (underwaterToggleEl) {
-    try {
-        underwaterToggleEl.checked = false;
-        underwaterToggleEl.addEventListener('change', (ev) => {
-            // ensure user gesture unlocks audio
-            try { unlockAudio(); } catch (e) {}
-            setUnderwaterEnabled(ev.target.checked);
-            showToast(ev.target.checked ? 'Underwater FX enabled' : 'Underwater FX disabled', 1200, 'info');
-        });
-    } catch (e) {}
-}
 
 // id counter for debug/logging
 let _jellyIdCounter = 1;
@@ -222,7 +113,7 @@ function createHUD() {
             h.innerHTML = `
                 <div class="hud-row"><span class="hud-label">Level</span><span id="hud-level" class="hud-value">${level}</span></div>
                 <div class="hud-row"><span class="hud-label">Popped</span><span id="hud-popped" class="hud-value">${poppedCount}/${popsToNextLevel}</span></div>
-                <div class="hud-row"><span class="hud-label">Audio</span><span id="hud-audio-mode" class="hud-value hud-audio">Off</span></div>
+                
                 <div class="hud-bar"><div id="hud-bar-fill" class="hud-bar-fill" style="width:0%"></div></div>
             `;
             document.body.appendChild(h);
@@ -241,29 +132,12 @@ function updateHUD() {
             const pct = Math.min(100, Math.round((poppedCount / popsToNextLevel) * 100));
             barFill.style.width = pct + '%';
         }
-        // also refresh audio indicator if present
-        try { updateAudioIndicator(); } catch (e) {}
+        
     } catch (e) {}
 }
 
 // update small HUD audio indicator to reflect WebAudio vs fallback and On/Off state
-function updateAudioIndicator() {
-    try {
-        const el = document.getElementById('hud-audio-mode');
-        if (!el) return;
-        const toggled = underwaterToggleEl && underwaterToggleEl.checked;
-        // prefer _audioCtx presence to detect WebAudio path; _useFallback indicates fallback
-        if (toggled) {
-            if (_useFallback) el.textContent = 'Underwater (Fallback)';
-            else if (_audioCtx) el.textContent = 'Underwater (WebAudio)';
-            else el.textContent = 'Underwater';
-        } else {
-            if (_useFallback) el.textContent = 'Normal (Fallback)';
-            else if (_audioCtx) el.textContent = 'Normal (WebAudio)';
-            else el.textContent = 'Normal';
-        }
-    } catch (e) {}
-}
+// audio indicator removed
 
 // small HUD pop animation when an enemy is popped
 function animateHudPop() {
