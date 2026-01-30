@@ -60,6 +60,8 @@ function initUnderwaterAudio() {
             _mediaSrc.connect(_lpFilter);
             _lpFilter.connect(_wetGain);
             _wetGain.connect(_audioCtx.destination);
+            // ensure the audio context is running
+            try { _audioCtx.resume().catch(()=>{}); } catch (e) {}
         } catch (e) {
             // some browsers disallow multiple MediaElementSource creations; ignore safely
             _mediaSrc = null;
@@ -105,6 +107,8 @@ function setUnderwaterEnabled(enabled) {
             _wetGain.gain.linearRampToValueAtTime(0.9, _audioCtx.currentTime + 0.35);
             _dryGain.gain.linearRampToValueAtTime(0.25, _audioCtx.currentTime + 0.35);
             appendLog('info', '[audio] underwater FX enabled');
+            // ensure music is playing after routing (some browsers require explicit play)
+            try { bgMusic.play().catch(()=>{}); } catch (e) {}
         } else {
             // fade out wet and restore dry
             _wetGain.gain.cancelScheduledValues(_audioCtx.currentTime);
@@ -114,6 +118,7 @@ function setUnderwaterEnabled(enabled) {
             _wetGain.gain.linearRampToValueAtTime(0.0, _audioCtx.currentTime + 0.35);
             _dryGain.gain.linearRampToValueAtTime(1.0, _audioCtx.currentTime + 0.35);
             appendLog('info', '[audio] underwater FX disabled');
+            try { bgMusic.play().catch(()=>{}); } catch (e) {}
         }
     } catch (e) {}
 }
