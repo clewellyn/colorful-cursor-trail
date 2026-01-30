@@ -217,6 +217,7 @@ function createHUD() {
             h.innerHTML = `
                 <div class="hud-row"><span class="hud-label">Level</span><span id="hud-level" class="hud-value">${level}</span></div>
                 <div class="hud-row"><span class="hud-label">Popped</span><span id="hud-popped" class="hud-value">${poppedCount}/${popsToNextLevel}</span></div>
+                <div class="hud-row"><span class="hud-label">Audio</span><span id="hud-audio-mode" class="hud-value hud-audio">Off</span></div>
                 <div class="hud-bar"><div id="hud-bar-fill" class="hud-bar-fill" style="width:0%"></div></div>
             `;
             document.body.appendChild(h);
@@ -234,6 +235,27 @@ function updateHUD() {
         if (barFill) {
             const pct = Math.min(100, Math.round((poppedCount / popsToNextLevel) * 100));
             barFill.style.width = pct + '%';
+        }
+        // also refresh audio indicator if present
+        try { updateAudioIndicator(); } catch (e) {}
+    } catch (e) {}
+}
+
+// update small HUD audio indicator to reflect WebAudio vs fallback and On/Off state
+function updateAudioIndicator() {
+    try {
+        const el = document.getElementById('hud-audio-mode');
+        if (!el) return;
+        const toggled = underwaterToggleEl && underwaterToggleEl.checked;
+        // prefer _audioCtx presence to detect WebAudio path; _useFallback indicates fallback
+        if (toggled) {
+            if (_useFallback) el.textContent = 'Underwater (Fallback)';
+            else if (_audioCtx) el.textContent = 'Underwater (WebAudio)';
+            else el.textContent = 'Underwater';
+        } else {
+            if (_useFallback) el.textContent = 'Normal (Fallback)';
+            else if (_audioCtx) el.textContent = 'Normal (WebAudio)';
+            else el.textContent = 'Normal';
         }
     } catch (e) {}
 }
