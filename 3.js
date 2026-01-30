@@ -33,6 +33,8 @@ let _mediaSrc = null;
 let _lpFilter = null;
 let _wetGain = null;
 let _dryGain = null;
+let _useFallback = false;
+let _bgOriginalVolume = null;
 function initUnderwaterAudio() {
     try {
         if (_audioCtx) return;
@@ -61,6 +63,7 @@ function initUnderwaterAudio() {
         } catch (e) {
             // some browsers disallow multiple MediaElementSource creations; ignore safely
             _mediaSrc = null;
+            _useFallback = true; // mark that we should fallback to volume-only behavior
         }
     } catch (e) {}
 }
@@ -68,7 +71,29 @@ function initUnderwaterAudio() {
 function setUnderwaterEnabled(enabled) {
     try {
         if (!(_audioCtx)) initUnderwaterAudio();
-        if (!(_audioCtx && _mediaSrc && _lpFilter && _wetGain && _dryGain)) return;
+        if (!(_audioCtx && _mediaSrc && _lpFilter && _wetGain && _dryGain)) {
+            // fallback: adjust bgMusic.volume smoothly if we cannot create a MediaElementSource
+            if (_useFallback && bgMusic) {
+                try {
+                    if (_bgOriginalVolume === null) _bgOriginalVolume = Number(bgMusic.volume) || 0.5;
+                    const target = enabled ? 0.25 : _bgOriginalVolume;
+                    const start = Number(bgMusic.volume) || 0.0;
+                    const dur = 350; // ms
+                    const steps = 12;
+                    const stepMs = Math.max(8, Math.floor(dur / steps));
+                    const delta = (target - start) / steps;
+                    let s = 0;
+                    const iv = setInterval(() => {
+                        s++;
+                        try { bgMusic.volume = Math.min(1, Math.max(0, start + delta * s)); } catch (e) {}
+                        if (s >= steps) clearInterval(iv);
+                    }, stepMs);
+                    appendLog('info', `[audio-fallback] underwater ${enabled ? 'enabled' : 'disabled'} volume faded to ${target}`);
+                    return;
+                } catch (e) { return; }
+            }
+            return;
+        }
         // ensure audio context is running
         try { _audioCtx.resume().catch(()=>{}); } catch (e) {}
         if (enabled) {
