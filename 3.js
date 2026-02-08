@@ -104,6 +104,15 @@ function initSettingsUI() {
 initSettingsUI();
 
 // HUD: create and update on-screen level/progress indicator
+function getEnemyLabel() {
+    try {
+        if (level === 1) return 'Jellyfish';
+        if (level === 2) return 'Stingrays';
+        if (level === 3) return 'Anglers';
+        return 'Mantas';
+    } catch (e) { return 'Creatures'; }
+}
+
 function createHUD() {
     try {
         let h = document.querySelector('.game-hud');
@@ -113,7 +122,8 @@ function createHUD() {
             h.innerHTML = `
                 <div class="hud-row"><span class="hud-label">Level</span><span id="hud-level" class="hud-value">${level}</span></div>
                 <div class="hud-row"><span class="hud-label">Popped</span><span id="hud-popped" class="hud-value">${poppedCount}/${popsToNextLevel}</span></div>
-                
+                <div class="hud-row"><span class="hud-label">Enemy</span><span id="hud-enemy" class="hud-value">${getEnemyLabel()}</span></div>
+
                 <div class="hud-bar"><div id="hud-bar-fill" class="hud-bar-fill" style="width:0%"></div></div>
             `;
             document.body.appendChild(h);
@@ -978,6 +988,87 @@ class Stingray {
     }
 }
 
+// Angler enemy (level 3) — slower, glowy lure and compact body
+class Angler {
+    constructor(side = 'left') {
+        this.size = 10 + Math.random() * 20; // compact
+        this.wFactor = 0.9 + Math.random() * 0.6;
+        this.hFactor = 0.9 + Math.random() * 0.6;
+        this.rotation = (Math.random() - 0.5) * 0.6;
+        this.side = side;
+        this.id = _jellyIdCounter++;
+        this.phase = Math.random() * Math.PI * 2;
+        this.baseSpeed = 0.08 + Math.random() * 0.24; // slow
+        this.dirX = 0; this.dirY = 0;
+        if (side === 'left') { this.x = -this.size - Math.random() * 80; this.y = Math.random() * (canvas.clientHeight * 0.8) + canvas.clientHeight * 0.1; this.dirX = 1; this.dirY = (Math.random() - 0.5) * 0.35; }
+        else if (side === 'right') { this.x = canvas.clientWidth + this.size + Math.random() * 80; this.y = Math.random() * (canvas.clientHeight * 0.8) + canvas.clientHeight * 0.1; this.dirX = -1; this.dirY = (Math.random() - 0.5) * 0.35; }
+        else if (side === 'top') { this.y = -this.size - Math.random() * 80; this.x = Math.random() * (canvas.clientWidth * 0.8) + canvas.clientWidth * 0.1; this.dirY = 1; this.dirX = (Math.random() - 0.5) * 0.35; }
+        else { this.y = canvas.clientHeight + this.size + Math.random() * 80; this.x = Math.random() * (canvas.clientWidth * 0.8) + canvas.clientWidth * 0.1; this.dirY = -1; this.dirX = (Math.random() - 0.5) * 0.35; }
+        const h = Math.floor(Math.random() * 360);
+        const sat = 60 + Math.floor(Math.random() * 20);
+        const light = 46 + Math.floor(Math.random() * 18);
+        this.color = `hsla(${h}, ${sat}%, ${light}%, 0.95)`;
+        this.swaySpeed = 0.008 + Math.random() * 0.01;
+        this.age = 0; this.maxAge = 500 + Math.random() * 900; this.alpha = 0.98; this.disappearing = false; this.hit = false; this.lastHit = 0; this.spawnTime = Date.now();
+    }
+    update() {
+        this.phase += this.swaySpeed;
+        this.x += this.dirX * this.baseSpeed * speedFactor;
+        this.y += this.dirY * this.baseSpeed * speedFactor;
+        // gentle vertical bob
+        const bob = Math.sin(this.phase * 1.4) * (1 + this.size * 0.02);
+        this.y += bob * 0.6;
+        if (this.disappearing) { this.alpha -= 0.02; this.size *= 0.989; }
+        this.age++;
+    }
+    draw() {
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.rotation);
+        const bw = this.size * this.wFactor; const bh = this.size * this.hFactor;
+        // body
+        const g = ctx.createLinearGradient(-bw * 0.5, 0, bw * 0.5, 0);
+        g.addColorStop(0, this.color);
+        g.addColorStop(1, 'rgba(255,255,255,0.06)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.ellipse(0, 0, bw, bh, 0, 0, Math.PI * 2); ctx.fill();
+        // lure: glowing orb above body
+        const lureX = 0; const lureY = -bh - (4 + Math.abs(Math.sin(this.phase) * 2));
+        const lureR = Math.max(2, this.size * 0.28);
+        const lg = ctx.createRadialGradient(lureX, lureY, 0, lureX, lureY, lureR * 2.6);
+        lg.addColorStop(0, 'rgba(200,255,255,0.95)'); lg.addColorStop(0.6, 'rgba(140,220,255,0.3)'); lg.addColorStop(1, 'rgba(140,220,255,0)');
+        ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(lureX, lureY, lureR, 0, Math.PI * 2); ctx.fill();
+        ctx.restore(); ctx.globalAlpha = 1;
+    }
+    isOffScreen() { return (this.x < -this.size - 200 || this.x > canvas.clientWidth + this.size + 200 || this.y < -this.size - 200 || this.y > canvas.clientHeight + this.size + 200 || this.age > this.maxAge); }
+}
+
+// Manta enemy (level 4+) — large gliding creature with wide wings
+class Manta {
+    constructor(side = 'left') {
+        this.size = 28 + Math.random() * 36; // large
+        this.wFactor = 2.0 + Math.random() * 0.8; this.hFactor = 0.5 + Math.random() * 0.4; this.rotation = (Math.random() - 0.5) * 0.25;
+        this.side = side; this.id = _jellyIdCounter++; this.phase = Math.random() * Math.PI * 2; this.baseSpeed = 0.12 + Math.random() * 0.28; this.dirX = 0; this.dirY = 0;
+        if (side === 'left') { this.x = -this.size - Math.random() * 160; this.y = Math.random() * (canvas.clientHeight * 0.7) + canvas.clientHeight * 0.15; this.dirX = 1; this.dirY = (Math.random() - 0.5) * 0.18; }
+        else if (side === 'right') { this.x = canvas.clientWidth + this.size + Math.random() * 160; this.y = Math.random() * (canvas.clientHeight * 0.7) + canvas.clientHeight * 0.15; this.dirX = -1; this.dirY = (Math.random() - 0.5) * 0.18; }
+        else if (side === 'top') { this.y = -this.size - Math.random() * 160; this.x = Math.random() * (canvas.clientWidth * 0.8) + canvas.clientWidth * 0.1; this.dirY = 1; this.dirX = (Math.random() - 0.5) * 0.18; }
+        else { this.y = canvas.clientHeight + this.size + Math.random() * 160; this.x = Math.random() * (canvas.clientWidth * 0.8) + canvas.clientWidth * 0.1; this.dirY = -1; this.dirX = (Math.random() - 0.5) * 0.18; }
+        const h = Math.floor(Math.random() * 360); const sat = 30 + Math.floor(Math.random() * 30); const light = 26 + Math.floor(Math.random() * 18); this.color = `hsla(${h}, ${sat}%, ${light}%, 0.95)`;
+        this.swaySpeed = 0.009 + Math.random() * 0.012; this.age = 0; this.maxAge = 500 + Math.random() * 1000; this.alpha = 0.98; this.disappearing = false; this.hit = false; this.lastHit = 0; this.spawnTime = Date.now();
+    }
+    update() { this.phase += this.swaySpeed; const und = Math.sin(this.phase * 1.2) * (2 + this.size * 0.02); this.x += this.dirX * this.baseSpeed * speedFactor; this.y += this.dirY * this.baseSpeed * speedFactor + und * 0.18; if (this.disappearing) { this.alpha -= 0.02; this.size *= 0.992; } this.age++; }
+    draw() {
+        ctx.save(); ctx.globalAlpha = this.alpha; ctx.translate(this.x, this.y); ctx.rotate(this.rotation);
+        const bw = this.size * this.wFactor; const bh = this.size * this.hFactor; const und = Math.sin(this.phase * 1.6) * (1 + this.size * 0.01);
+        // wide winged shape
+        const g = ctx.createLinearGradient(-bw * 0.6, 0, bw * 0.6, 0); g.addColorStop(0, this.color); g.addColorStop(1, 'rgba(255,255,255,0.06)'); ctx.fillStyle = g;
+        ctx.beginPath(); ctx.moveTo(-bw * 0.6, 0); ctx.quadraticCurveTo(-bw * 0.18, -bh * 0.9 - und * 0.4, 0, -bh * 0.2); ctx.quadraticCurveTo(bw * 0.18, -bh * 0.9 + und * 0.4, bw * 0.6, 0); ctx.quadraticCurveTo(bw * 0.08, bh * 0.9, 0, bh * 0.7); ctx.quadraticCurveTo(-bw * 0.08, bh * 0.9, -bw * 0.6, 0); ctx.fill();
+        ctx.lineWidth = Math.max(0.5, this.size * 0.02); ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.stroke(); ctx.restore(); ctx.globalAlpha = 1;
+    }
+    isOffScreen() { return (this.x < -this.size - 300 || this.x > canvas.clientWidth + this.size + 300 || this.y < -this.size - 300 || this.y > canvas.clientHeight + this.size + 300 || this.age > this.maxAge); }
+}
+
 let jellyfish = [];
 let spawnTimer = 0;
 const spawnInterval = 240; // in frames (~4s at 60fps)
@@ -987,7 +1078,9 @@ function spawnJelly() {
     const side = sides[Math.floor(Math.random() * sides.length)];
     if (jellyfish.length < maxJelly) {
         if (level === 1) jellyfish.push(new Jellyfish(side));
-        else jellyfish.push(new Stingray(side));
+        else if (level === 2) jellyfish.push(new Stingray(side));
+        else if (level === 3) jellyfish.push(new Angler(side));
+        else jellyfish.push(new Manta(side));
     }
 }
 
