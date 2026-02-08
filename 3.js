@@ -147,6 +147,8 @@ function createHUD() {
                 <div class="hud-row"><span class="hud-label">Creature</span><span id="hud-enemy" class="hud-value">${getEnemyLabel()}</span></div>
 
                 <div class="hud-bar"><div id="hud-bar-fill" class="hud-bar-fill" style="width:0%"></div></div>
+                <!-- gear/settings toggle inside HUD -->
+                <button id="settingsToggle" class="settings-toggle" title="Settings" aria-label="Settings">⚙️</button>
             `;
             document.body.appendChild(h);
         }
