@@ -102,28 +102,7 @@ function initSettingsUI() {
 // initialize (if panel exists)
 initSettingsUI();
 
-// Settings panel collapsible toggle (ear icon)
-const settingsPanelEl = document.getElementById('settingsPanel');
-const settingsToggleBtn = document.getElementById('settingsToggle');
-try {
-    if (settingsPanelEl) settingsPanelEl.classList.add('collapsed');
-    if (settingsToggleBtn) {
-        settingsToggleBtn.setAttribute('aria-expanded', 'false');
-        settingsToggleBtn.addEventListener('click', () => {
-            if (!settingsPanelEl) return;
-            const isOpen = settingsPanelEl.classList.contains('open');
-            if (isOpen) {
-                settingsPanelEl.classList.remove('open');
-                settingsPanelEl.classList.add('collapsed');
-                settingsToggleBtn.setAttribute('aria-expanded', 'false');
-            } else {
-                settingsPanelEl.classList.remove('collapsed');
-                settingsPanelEl.classList.add('open');
-                settingsToggleBtn.setAttribute('aria-expanded', 'true');
-            }
-        });
-    }
-} catch (e) {}
+// settings panel toggle wiring is attached after HUD is created
 
 // HUD: create and update on-screen level/progress indicator
 function getEnemyLabel() {
@@ -207,6 +186,29 @@ function createLevelTransition(text, cb) {
 // create HUD on load
 createHUD();
 updateHUD();
+
+// Attach settings toggle wiring now that HUD (and its button) exists
+try {
+    const settingsPanelEl = document.getElementById('settingsPanel');
+    const settingsToggleBtn = document.getElementById('settingsToggle');
+    if (settingsPanelEl) settingsPanelEl.classList.add('collapsed');
+    if (settingsToggleBtn) {
+        settingsToggleBtn.setAttribute('aria-expanded', 'false');
+        settingsToggleBtn.addEventListener('click', () => {
+            if (!settingsPanelEl) return;
+            const isOpen = settingsPanelEl.classList.contains('open');
+            if (isOpen) {
+                settingsPanelEl.classList.remove('open');
+                settingsPanelEl.classList.add('collapsed');
+                settingsToggleBtn.setAttribute('aria-expanded', 'false');
+            } else {
+                settingsPanelEl.classList.remove('collapsed');
+                settingsPanelEl.classList.add('open');
+                settingsToggleBtn.setAttribute('aria-expanded', 'true');
+            }
+        });
+    }
+} catch (e) {}
 
 // Reset settings to sensible defaults and update UI/localStorage
 function resetSettingsToDefaults() {
