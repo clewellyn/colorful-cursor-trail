@@ -5,9 +5,8 @@ const ctx = canvas.getContext('2d');
 const bgMusic = document.getElementById('bgMusic');
 const toggleMusic = document.getElementById('toggleMusic');
 const volumeSlider = document.getElementById('volumeSlider');
-const toggleJelly = document.getElementById('toggleJelly');
 
-// Jellyfish enabled flag
+// Jellyfish enabled flag (always on by default; toggle removed from UI)
 let jellyEnabled = true;
 
 // global speed factor for jellyfish (gradually increases)
@@ -103,6 +102,29 @@ function initSettingsUI() {
 // initialize (if panel exists)
 initSettingsUI();
 
+// Settings panel collapsible toggle (ear icon)
+const settingsPanelEl = document.getElementById('settingsPanel');
+const settingsToggleBtn = document.getElementById('settingsToggle');
+try {
+    if (settingsPanelEl) settingsPanelEl.classList.add('collapsed');
+    if (settingsToggleBtn) {
+        settingsToggleBtn.setAttribute('aria-expanded', 'false');
+        settingsToggleBtn.addEventListener('click', () => {
+            if (!settingsPanelEl) return;
+            const isOpen = settingsPanelEl.classList.contains('open');
+            if (isOpen) {
+                settingsPanelEl.classList.remove('open');
+                settingsPanelEl.classList.add('collapsed');
+                settingsToggleBtn.setAttribute('aria-expanded', 'false');
+            } else {
+                settingsPanelEl.classList.remove('collapsed');
+                settingsPanelEl.classList.add('open');
+                settingsToggleBtn.setAttribute('aria-expanded', 'true');
+            }
+        });
+    }
+} catch (e) {}
+
 // HUD: create and update on-screen level/progress indicator
 function getEnemyLabel() {
     try {
@@ -138,6 +160,8 @@ function updateHUD() {
         const barFill = document.getElementById('hud-bar-fill');
         if (levelEl) levelEl.textContent = String(level);
         if (poppedEl) poppedEl.textContent = `${poppedCount}/${popsToNextLevel}`;
+        const enemyEl = document.getElementById('hud-enemy');
+        if (enemyEl) enemyEl.textContent = getEnemyLabel();
         if (barFill) {
             const pct = Math.min(100, Math.round((poppedCount / popsToNextLevel) * 100));
             barFill.style.width = pct + '%';
@@ -1091,7 +1115,7 @@ function goToNextLevel() {
         try {
             level = nextLevel;
             appendLog('info', `[level] advancing to level ${level}`);
-            showToast(`Level ${level}: Now popping ${level === 2 ? 'Stingrays' : 'next creatures'}`, 2200, 'success');
+            showToast(`Level ${level}: Now popping ${getEnemyLabel()}`, 2200, 'success');
             // clear existing entities and reset counters
             jellyfish.length = 0;
             poppedCount = 0;
