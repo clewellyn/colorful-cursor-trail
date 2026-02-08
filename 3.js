@@ -32,7 +32,7 @@ let _jellyIdCounter = 1;
 // Level progression
 let level = 1;
 let poppedCount = 0;
-const popsToNextLevel = 30;
+const popsToNextLevel = 10;
 
 // Settings UI elements (initialized below) - optional if panel not present
 const sensitivityEl = document.getElementById('sensitivity');
