@@ -122,7 +122,7 @@ function createHUD() {
             h.innerHTML = `
                 <div class="hud-row"><span class="hud-label">Level</span><span id="hud-level" class="hud-value">${level}</span></div>
                 <div class="hud-row"><span class="hud-label">Popped</span><span id="hud-popped" class="hud-value">${poppedCount}/${popsToNextLevel}</span></div>
-                <div class="hud-row"><span class="hud-label">Enemy</span><span id="hud-enemy" class="hud-value">${getEnemyLabel()}</span></div>
+                <div class="hud-row"><span class="hud-label">Creature</span><span id="hud-enemy" class="hud-value">${getEnemyLabel()}</span></div>
 
                 <div class="hud-bar"><div id="hud-bar-fill" class="hud-bar-fill" style="width:0%"></div></div>
             `;
