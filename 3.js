@@ -212,6 +212,30 @@ try {
     }
 } catch (e) {}
 
+// As a fallback, also handle clicks via event delegation (covers any timing issues)
+try {
+    document.addEventListener('click', (ev) => {
+        const t = ev.target;
+        if (!t) return;
+        const btn = t.closest && t.closest('#settingsToggle');
+        if (!btn) return;
+        const panel = document.getElementById('settingsPanel');
+        if (!panel) return;
+        const isOpen = panel.classList.contains('open');
+        if (isOpen) {
+            panel.classList.remove('open');
+            panel.classList.add('collapsed');
+            btn.setAttribute('aria-expanded', 'false');
+            try { appendLog('info', '[settings] closed (delegated)'); showToast('Settings closed', 900, 'info'); } catch (e) {}
+        } else {
+            panel.classList.remove('collapsed');
+            panel.classList.add('open');
+            btn.setAttribute('aria-expanded', 'true');
+            try { appendLog('info', '[settings] opened (delegated)'); showToast('Settings opened', 900, 'success'); } catch (e) {}
+        }
+    });
+} catch (e) {}
+
 // Reset settings to sensible defaults and update UI/localStorage
 function resetSettingsToDefaults() {
     const defaults = { movementThreshold: 2.5, requireDotThreshold: 0.2, globalCooldown: 220 };
