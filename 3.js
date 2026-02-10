@@ -201,10 +201,12 @@ try {
                 settingsPanelEl.classList.remove('open');
                 settingsPanelEl.classList.add('collapsed');
                 settingsToggleBtn.setAttribute('aria-expanded', 'false');
+                try { appendLog('info', '[settings] closed'); showToast('Settings closed', 900, 'info'); } catch (e) {}
             } else {
                 settingsPanelEl.classList.remove('collapsed');
                 settingsPanelEl.classList.add('open');
                 settingsToggleBtn.setAttribute('aria-expanded', 'true');
+                try { appendLog('info', '[settings] opened'); showToast('Settings opened', 900, 'success'); } catch (e) {}
             }
         });
     }
