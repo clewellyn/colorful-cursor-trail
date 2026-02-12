@@ -136,6 +136,8 @@ function createHUD() {
                 <div class="hud-row"><span class="hud-label">Creature</span><span id="hud-enemy" class="hud-value">${getEnemyLabel()}</span></div>
 
                 <div class="hud-bar"><div id="hud-bar-fill" class="hud-bar-fill" style="width:0%"></div></div>
+                <!-- sound indicator (updated by JS) -->
+                <div id="hud-sound" class="hud-sound" aria-hidden="true"><span id="hud-sound-dot" class="hud-sound-dot on"></span><span id="hud-sound-label" class="hud-sound-label">On</span></div>
                 <!-- gear/settings toggle inside HUD -->
                 <button id="settingsToggle" class="settings-toggle" title="Settings" aria-label="Settings">⚙️</button>
             `;
@@ -153,6 +155,20 @@ function updateHUD() {
         if (poppedEl) poppedEl.textContent = `${poppedCount}/${popsToNextLevel}`;
         const enemyEl = document.getElementById('hud-enemy');
         if (enemyEl) enemyEl.textContent = getEnemyLabel();
+        // update sound indicator
+        try {
+            const soundDot = document.getElementById('hud-sound-dot');
+            const soundLabel = document.getElementById('hud-sound-label');
+            if (soundDot && soundLabel) {
+                if (typeof soundEnabled !== 'undefined' && soundEnabled) {
+                    soundDot.classList.remove('off'); soundDot.classList.add('on');
+                    soundLabel.textContent = 'On';
+                } else {
+                    soundDot.classList.remove('on'); soundDot.classList.add('off');
+                    soundLabel.textContent = 'Off';
+                }
+            }
+        } catch (e) {}
         if (barFill) {
             const pct = Math.min(100, Math.round((poppedCount / popsToNextLevel) * 100));
             barFill.style.width = pct + '%';

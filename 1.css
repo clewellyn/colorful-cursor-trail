@@ -241,6 +241,12 @@ body {
 .game-hud .hud-row { display:flex; justify-content:space-between; margin-bottom:6px; }
 .game-hud .hud-label { opacity:0.8; font-size:12px; }
 .game-hud .hud-value { font-weight:700; }
+/* HUD sound indicator */
+.game-hud .hud-sound { position: absolute; right: 48px; top: 8px; display:flex; align-items:center; gap:8px; font-size:12px; color:#dfefff; }
+.game-hud .hud-sound-dot { width:10px; height:10px; border-radius:50%; display:inline-block; box-shadow: 0 0 0 rgba(0,0,0,0); }
+.game-hud .hud-sound-dot.on { background: #66ff88; box-shadow: 0 0 6px rgba(102,255,136,0.24); }
+.game-hud .hud-sound-dot.off { background: #ff7b7b; box-shadow: 0 0 4px rgba(255,120,120,0.18); }
+.game-hud .hud-sound-label { font-size:11px; opacity:0.9; }
 /* audio indicator removed per user request */
 .game-hud .hud-bar { width:100%; height:8px; background: rgba(255,255,255,0.06); border-radius:6px; overflow:hidden; }
 .game-hud .hud-bar-fill { height:100%; background: linear-gradient(90deg,#66f0ff,#66ffa6); width:0%; transition:width 320ms ease; }
