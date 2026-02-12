@@ -1287,7 +1287,9 @@ class Clam {
 
 let jellyfish = [];
 let spawnTimer = 0;
-const spawnInterval = 240; // in frames (~4s at 60fps)
+// spawnInterval controls how often new creatures are spawned (in animation frames)
+// Lower value => more frequent spawns. Reduced from 240 to 160 for snappier pacing.
+const spawnInterval = 160; // in frames (~2.6s at 60fps)
 
 function spawnJelly() {
     const sides = ['left', 'right', 'top', 'bottom'];
