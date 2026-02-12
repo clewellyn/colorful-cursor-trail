@@ -1204,31 +1204,73 @@ class Starfish {
     isOffScreen() { return (this.x < -this.size - 120 || this.x > canvas.clientWidth + this.size + 120 || this.y < -this.size - 120 || this.y > canvas.clientHeight + this.size + 120 || this.age > this.maxAge); }
 }
 
-// Goldfish (level 8) — small, quick, bright, emits occasional bubbles
-class Goldfish {
+// Lionfish (level 8) — a saltwater species with vertical fins and bold stripes
+class Lionfish {
     constructor(side = 'left') {
-        this.size = 6 + Math.random() * 10; this.wFactor = 1.0; this.hFactor = 0.9; this.rotation = (Math.random() - 0.5) * 0.4; this.side = side; this.id = _jellyIdCounter++; this.phase = Math.random() * Math.PI * 2; this.baseSpeed = 0.18 + Math.random() * 0.34; this.dirX = 0; this.dirY = 0;
+        this.size = 8 + Math.random() * 12;
+        this.wFactor = 1.05;
+        this.hFactor = 1.1;
+        this.rotation = (Math.random() - 0.5) * 0.35;
+        this.side = side;
+        this.id = _jellyIdCounter++;
+        this.phase = Math.random() * Math.PI * 2;
+        this.baseSpeed = 0.12 + Math.random() * 0.28;
+        this.dirX = 0; this.dirY = 0;
         if (side === 'left') { this.x = -this.size - Math.random() * 80; this.y = Math.random() * (canvas.clientHeight * 0.9) + canvas.clientHeight * 0.05; this.dirX = 1; }
         else if (side === 'right') { this.x = canvas.clientWidth + this.size + Math.random() * 80; this.y = Math.random() * (canvas.clientHeight * 0.9) + canvas.clientHeight * 0.05; this.dirX = -1; }
         else { this.x = Math.random() * canvas.clientWidth; this.y = Math.random() * canvas.clientHeight; this.dirX = (Math.random() - 0.5); }
-        this.color = `hsla(28, 85%, ${50 + Math.floor(Math.random()*8)}%, 0.98)`;
-        this.age = 0; this.maxAge = 300 + Math.random() * 600; this.alpha = 0.98; this.disappearing = false; this.hit = false; this.lastHit = 0; this.spawnTime = Date.now(); this._lastBubble = Date.now() - Math.random()*1000;
+        // reddish-orange with banding
+        const hue = 14 + Math.floor(Math.random() * 30); this.color = `hsla(${hue}, 85%, ${46 + Math.floor(Math.random()*6)}%, 0.98)`;
+        this.stripeHue = hue + 18;
+        this.age = 0; this.maxAge = 420 + Math.random() * 760; this.alpha = 0.98; this.disappearing = false; this.hit = false; this.lastHit = 0; this.spawnTime = Date.now(); this._lastBubble = Date.now() - Math.random()*1000;
     }
-    update() { this.phase += 0.02; this.x += this.dirX * this.baseSpeed * speedFactor + Math.sin(this.phase*2.2)*0.6; this.y += Math.cos(this.phase*1.8)*0.3; if (this.disappearing) { this.alpha -= 0.02; this.size *= 0.994; } this.age++; const now = Date.now(); if (now - this._lastBubble > 600 + Math.random()*800) { this._lastBubble = now; particles.push(new Bubble(this.x - 2, this.y - 2)); } }
-    draw() { ctx.save(); ctx.globalAlpha = this.alpha; ctx.translate(this.x, this.y); ctx.rotate(this.rotation); const bw = this.size * this.wFactor; const bh = this.size * this.hFactor; const g = ctx.createLinearGradient(-bw*0.4,0,bw*0.4,0); g.addColorStop(0,this.color); g.addColorStop(1,'rgba(255,255,255,0.06)'); ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(0,0,bw,bh,0,0,Math.PI*2); ctx.fill(); ctx.restore(); ctx.globalAlpha=1; }
+    update() {
+        this.phase += 0.018;
+        this.x += this.dirX * this.baseSpeed * speedFactor + Math.sin(this.phase * 1.8) * 0.4;
+        this.y += Math.cos(this.phase * 1.4) * 0.28;
+        if (this.disappearing) { this.alpha -= 0.02; this.size *= 0.994; }
+        this.age++;
+        const now = Date.now(); if (now - this._lastBubble > 700 + Math.random()*900) { this._lastBubble = now; particles.push(new Bubble(this.x - 2, this.y - 2)); }
+    }
+    draw() {
+        ctx.save(); ctx.globalAlpha = this.alpha; ctx.translate(this.x, this.y); ctx.rotate(this.rotation);
+        const bw = this.size * this.wFactor; const bh = this.size * this.hFactor;
+        // body
+        const g = ctx.createLinearGradient(-bw*0.5,0,bw*0.5,0); g.addColorStop(0,this.color); g.addColorStop(1,'rgba(255,255,255,0.06)'); ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0,0,bw,bh,0,0,Math.PI*2); ctx.fill();
+        // vertical fin rays - striped
+        ctx.lineWidth = Math.max(1, this.size * 0.06);
+        for (let i = -2; i <= 2; i++){
+            const x = i * (bw * 0.14);
+            ctx.beginPath(); ctx.moveTo(x, -bh*0.2); ctx.lineTo(x + Math.sin(this.phase + i) * 6, -bh*1.2); ctx.strokeStyle = `hsla(${this.stripeHue}, 80%, 42%, 0.88)`; ctx.stroke();
+        }
+        // small tail
+        ctx.beginPath(); ctx.moveTo(-bw*0.6, 0); ctx.quadraticCurveTo(-bw*1.1, 0, -bw*1.4, 4); ctx.fillStyle = 'rgba(0,0,0,0.06)'; ctx.fill();
+        ctx.restore(); ctx.globalAlpha = 1;
+    }
     isOffScreen() { return (this.x < -this.size - 160 || this.x > canvas.clientWidth + this.size + 160 || this.y < -this.size - 160 || this.y > canvas.clientHeight + this.size + 160 || this.age > this.maxAge); }
 }
 
-// Seaweed (level 9) — anchored near bottom; sways but mostly stationary
+// Seaweed (level 9) — large, visible fronds that float and drift around
 class Seaweed {
     constructor(side = 'left') {
-        this.size = 18 + Math.random() * 28; this.wFactor = 0.4 + Math.random()*0.6; this.hFactor = 1.6 + Math.random()*1.2; this.rotation = 0; this.side = side; this.id = _jellyIdCounter++; this.phase = Math.random()*Math.PI*2; this.baseSpeed = 0; this.age=0; this.maxAge = 2000 + Math.random()*2000; this.alpha=0.98; this.disappearing=false; this.hit=false; this.lastHit=0; this.spawnTime=Date.now();
-        // anchor near bottom
+        this.size = 48 + Math.random() * 60; // much larger
+        this.wFactor = 0.6 + Math.random()*0.8; this.hFactor = 2.2 + Math.random()*1.6; this.rotation = (Math.random()-0.5)*0.6; this.side = side; this.id = _jellyIdCounter++; this.phase = Math.random()*Math.PI*2; this.baseSpeed = 0.02 + Math.random()*0.06; this.age=0; this.maxAge = 3000 + Math.random()*2000; this.alpha=0.98; this.disappearing=false; this.hit=false; this.lastHit=0; this.spawnTime=Date.now();
+        // start anywhere and float slowly
         this.x = Math.random() * canvas.clientWidth;
-        this.y = canvas.clientHeight - (10 + Math.random()*40);
+        this.y = Math.random() * canvas.clientHeight * 0.9 + canvas.clientHeight * 0.05;
+        this.vx = (Math.random()-0.5) * 0.3;
+        this.vy = (Math.random()-0.5) * 0.18;
     }
-    update() { this.phase += 0.006; if (this.disappearing) { this.alpha -= 0.01; } this.age++; }
-    draw() { ctx.save(); ctx.globalAlpha = this.alpha; ctx.translate(this.x, this.y); const sway = Math.sin(this.phase) * (2 + this.size*0.04); ctx.fillStyle = `hsla(${Math.floor(Math.random()*80)+100},30%,28%,0.95)`; ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(sway*0.2, -this.size*0.4, sway, -this.size*0.9); ctx.quadraticCurveTo(sway*0.4, -this.size*1.05, 0, -this.size*1.4); ctx.closePath(); ctx.fill(); ctx.restore(); ctx.globalAlpha=1; }
+    update() { this.phase += 0.006; this.x += this.vx * speedFactor; this.y += this.vy * speedFactor + Math.sin(this.phase*0.8)*0.4; // wrap around edges
+        if (this.x < -this.size) this.x = canvas.clientWidth + this.size; if (this.x > canvas.clientWidth + this.size) this.x = -this.size; if (this.y < -this.size) this.y = canvas.clientHeight + this.size; if (this.y > canvas.clientHeight + this.size) this.y = -this.size;
+        if (this.disappearing) { this.alpha -= 0.01; } this.age++; }
+    draw() { ctx.save(); ctx.globalAlpha = this.alpha; ctx.translate(this.x, this.y); ctx.rotate(this.rotation); const sway = Math.sin(this.phase) * (6 + this.size*0.02);
+        // draw several tall fronds for visibility
+        for (let i=0;i<4;i++){
+            const off = (i-1.5) * (this.size*0.18);
+            ctx.beginPath(); ctx.moveTo(off, 0); ctx.quadraticCurveTo(off + sway*0.08, -this.size*0.36, off + sway*0.4, -this.size*1.05); ctx.quadraticCurveTo(off + sway*0.6, -this.size*1.25, off, -this.size*1.6); ctx.strokeStyle = `rgba(40,160,80,0.9)`; ctx.lineWidth = Math.max(2, this.size*0.06); ctx.stroke(); ctx.fillStyle = `rgba(30,140,60,0.14)`; ctx.fill();
+        }
+        ctx.restore(); ctx.globalAlpha=1; }
     isOffScreen() { return (this.age > this.maxAge); }
 }
 
