@@ -110,7 +110,14 @@ function getEnemyLabel() {
         if (level === 1) return 'Jellyfish';
         if (level === 2) return 'Stingrays';
         if (level === 3) return 'Anglers';
-        return 'Mantas';
+        if (level === 4) return 'Mantas';
+        if (level === 5) return 'Sharks';
+        if (level === 6) return 'Eels';
+        if (level === 7) return 'Starfish';
+        if (level === 8) return 'Goldfish';
+        if (level === 9) return 'Seaweed';
+        if (level === 10) return 'Clams';
+        return 'Creatures';
     } catch (e) { return 'Creatures'; }
 }
 
@@ -1123,6 +1130,119 @@ class Manta {
     isOffScreen() { return (this.x < -this.size - 300 || this.x > canvas.clientWidth + this.size + 300 || this.y < -this.size - 300 || this.y > canvas.clientHeight + this.size + 300 || this.age > this.maxAge); }
 }
 
+// Shark enemy (level 5) — predatory, streamlined, faster
+class Shark {
+    constructor(side = 'left') {
+        this.size = 32 + Math.random() * 36; // large
+        this.wFactor = 1.4 + Math.random() * 0.8; this.hFactor = 0.5 + Math.random() * 0.3; this.rotation = (Math.random() - 0.5) * 0.15;
+        this.side = side; this.id = _jellyIdCounter++; this.phase = Math.random() * Math.PI * 2; this.baseSpeed = 0.22 + Math.random() * 0.36; this.dirX = 0; this.dirY = 0;
+        if (side === 'left') { this.x = -this.size - Math.random() * 200; this.y = Math.random() * (canvas.clientHeight * 0.7) + canvas.clientHeight * 0.15; this.dirX = 1; this.dirY = (Math.random() - 0.5) * 0.12; }
+        else if (side === 'right') { this.x = canvas.clientWidth + this.size + Math.random() * 200; this.y = Math.random() * (canvas.clientHeight * 0.7) + canvas.clientHeight * 0.15; this.dirX = -1; this.dirY = (Math.random() - 0.5) * 0.12; }
+        else if (side === 'top') { this.y = -this.size - Math.random() * 200; this.x = Math.random() * (canvas.clientWidth * 0.8) + canvas.clientWidth * 0.1; this.dirY = 1; this.dirX = (Math.random() - 0.5) * 0.12; }
+        else { this.y = canvas.clientHeight + this.size + Math.random() * 200; this.x = Math.random() * (canvas.clientWidth * 0.8) + canvas.clientWidth * 0.1; this.dirY = -1; this.dirX = (Math.random() - 0.5) * 0.12; }
+        const h = Math.floor(Math.random() * 40) + 200; const sat = 20 + Math.floor(Math.random() * 30); const light = 18 + Math.floor(Math.random() * 12); this.color = `hsla(${h}, ${sat}%, ${light}%, 0.96)`;
+        this.swaySpeed = 0.008 + Math.random() * 0.01; this.age = 0; this.maxAge = 400 + Math.random() * 900; this.alpha = 0.98; this.disappearing = false; this.hit = false; this.lastHit = 0; this.spawnTime = Date.now();
+    }
+    update() { this.phase += this.swaySpeed; const und = Math.sin(this.phase * 1.4) * (1 + this.size * 0.02); this.x += this.dirX * this.baseSpeed * speedFactor; this.y += this.dirY * this.baseSpeed * speedFactor + und * 0.06; if (this.disappearing) { this.alpha -= 0.02; this.size *= 0.994; } this.age++; }
+    draw() {
+        ctx.save(); ctx.globalAlpha = this.alpha; ctx.translate(this.x, this.y); ctx.rotate(this.rotation);
+        const bw = this.size * this.wFactor; const bh = this.size * this.hFactor;
+        // sleek body
+        const g = ctx.createLinearGradient(-bw * 0.6, 0, bw * 0.6, 0); g.addColorStop(0, this.color); g.addColorStop(1, 'rgba(255,255,255,0.04)'); ctx.fillStyle = g;
+        ctx.beginPath(); ctx.ellipse(0, 0, bw, bh, 0, 0, Math.PI * 2); ctx.fill();
+        // dorsal fin
+        ctx.beginPath(); ctx.moveTo(-bw * 0.06, -bh * 0.3); ctx.lineTo(0, -bh * 0.9); ctx.lineTo(bw * 0.16, -bh * 0.1); ctx.closePath(); ctx.fillStyle = 'rgba(0,0,0,0.08)'; ctx.fill();
+        // subtle teeth hint when hovered
+        ctx.restore(); ctx.globalAlpha = 1;
+    }
+    isOffScreen() { return (this.x < -this.size - 400 || this.x > canvas.clientWidth + this.size + 400 || this.y < -this.size - 300 || this.y > canvas.clientHeight + this.size + 300 || this.age > this.maxAge); }
+}
+
+// Eel enemy (level 6) — long, sinuous, wiggles vertically
+class Eel {
+    constructor(side = 'left') {
+        this.size = 10 + Math.random() * 28; this.wFactor = 0.28 + Math.random() * 0.5; this.hFactor = 0.8 + Math.random() * 0.6; this.rotation = (Math.random() - 0.5) * 0.6; this.side = side; this.id = _jellyIdCounter++; this.phase = Math.random() * Math.PI * 2; this.baseSpeed = 0.12 + Math.random() * 0.22; this.dirX = 0; this.dirY = 0;
+        if (side === 'left') { this.x = -this.size - Math.random() * 160; this.y = Math.random() * (canvas.clientHeight * 0.9) + canvas.clientHeight * 0.05; this.dirX = 1; }
+        else if (side === 'right') { this.x = canvas.clientWidth + this.size + Math.random() * 160; this.y = Math.random() * (canvas.clientHeight * 0.9) + canvas.clientHeight * 0.05; this.dirX = -1; }
+        else { this.x = Math.random() * canvas.clientWidth; this.y = Math.random() * canvas.clientHeight; this.dirX = (Math.random() - 0.5); this.dirY = (Math.random() - 0.5); }
+        const h = Math.floor(Math.random() * 40) + 150; const sat = 40 + Math.floor(Math.random() * 30); const light = 34 + Math.floor(Math.random() * 18); this.color = `hsla(${h}, ${sat}%, ${light}%, 0.95)`;
+        this.swaySpeed = 0.02 + Math.random() * 0.03; this.swayAmp = 2 + Math.random() * 2; this.age = 0; this.maxAge = 500 + Math.random() * 900; this.alpha = 0.96; this.disappearing = false; this.hit = false; this.lastHit = 0; this.spawnTime = Date.now();
+    }
+    update() { this.phase += this.swaySpeed; const wig = Math.sin(this.phase * 2.2) * (1 + this.size * 0.03) * this.swayAmp; this.x += this.dirX * this.baseSpeed * speedFactor; this.y += wig * 0.2; if (this.disappearing) { this.alpha -= 0.02; this.size *= 0.994; } this.age++; }
+    draw() {
+        ctx.save(); ctx.globalAlpha = this.alpha; ctx.translate(this.x, this.y); ctx.rotate(this.rotation);
+        const bw = Math.max(8, this.size * this.wFactor); const bh = Math.max(3, this.size * this.hFactor);
+        // long rounded rectangle body
+        ctx.fillStyle = this.color; ctx.beginPath(); ctx.ellipse(0, 0, bw, bh, 0, 0, Math.PI * 2); ctx.fill();
+        // head taper
+        ctx.beginPath(); ctx.moveTo(bw, 0); ctx.quadraticCurveTo(bw + bw * 0.6, 0, bw + bw * 1.2, -4); ctx.lineTo(bw, 0); ctx.fillStyle = 'rgba(255,255,255,0.02)'; ctx.fill();
+        ctx.restore(); ctx.globalAlpha = 1;
+    }
+    isOffScreen() { return (this.x < -this.size - 300 || this.x > canvas.clientWidth + this.size + 300 || this.y < -this.size - 300 || this.y > canvas.clientHeight + this.size + 300 || this.age > this.maxAge); }
+}
+
+// Starfish (level 7) — smaller, slow-moving or drifting, radial arms
+class Starfish {
+    constructor(side = 'left') {
+        this.size = 8 + Math.random() * 12; this.wFactor = 1; this.hFactor = 1; this.rotation = Math.random() * Math.PI * 2; this.side = side; this.id = _jellyIdCounter++; this.phase = Math.random() * Math.PI * 2; this.baseSpeed = 0.04 + Math.random() * 0.12; this.dirX = 0; this.dirY = 0;
+        if (side === 'left') { this.x = -this.size - Math.random() * 60; this.y = Math.random() * (canvas.clientHeight * 0.9) + canvas.clientHeight * 0.05; this.dirX = 1; }
+        else if (side === 'right') { this.x = canvas.clientWidth + this.size + Math.random() * 60; this.y = Math.random() * (canvas.clientHeight * 0.9) + canvas.clientHeight * 0.05; this.dirX = -1; }
+        else { this.x = Math.random() * canvas.clientWidth; this.y = Math.random() * canvas.clientHeight; this.dirX = (Math.random() - 0.5); }
+        const h = Math.floor(Math.random() * 40) + 20; const sat = 60 + Math.floor(Math.random() * 30); const light = 54 + Math.floor(Math.random() * 20); this.color = `hsla(${h}, ${sat}%, ${light}%, 0.98)`;
+        this.age = 0; this.maxAge = 700 + Math.random() * 900; this.alpha = 0.98; this.disappearing = false; this.hit = false; this.lastHit = 0; this.spawnTime = Date.now();
+    }
+    update() { this.phase += 0.008; this.x += this.dirX * this.baseSpeed * speedFactor; if (this.disappearing) { this.alpha -= 0.02; this.size *= 0.994; } this.age++; }
+    draw() {
+        ctx.save(); ctx.globalAlpha = this.alpha; ctx.translate(this.x, this.y); ctx.rotate(this.rotation);
+        const r = this.size;
+        ctx.fillStyle = this.color;
+        for (let i=0;i<5;i++){
+            ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(i * Math.PI * 2 / 5) * r, Math.sin(i * Math.PI * 2 / 5) * r); ctx.lineTo(Math.cos((i+0.5) * Math.PI * 2 /5) * (r*0.5), Math.sin((i+0.5) * Math.PI * 2 /5) * (r*0.5)); ctx.closePath(); ctx.fill();
+        }
+        ctx.restore(); ctx.globalAlpha = 1;
+    }
+    isOffScreen() { return (this.x < -this.size - 120 || this.x > canvas.clientWidth + this.size + 120 || this.y < -this.size - 120 || this.y > canvas.clientHeight + this.size + 120 || this.age > this.maxAge); }
+}
+
+// Goldfish (level 8) — small, quick, bright, emits occasional bubbles
+class Goldfish {
+    constructor(side = 'left') {
+        this.size = 6 + Math.random() * 10; this.wFactor = 1.0; this.hFactor = 0.9; this.rotation = (Math.random() - 0.5) * 0.4; this.side = side; this.id = _jellyIdCounter++; this.phase = Math.random() * Math.PI * 2; this.baseSpeed = 0.18 + Math.random() * 0.34; this.dirX = 0; this.dirY = 0;
+        if (side === 'left') { this.x = -this.size - Math.random() * 80; this.y = Math.random() * (canvas.clientHeight * 0.9) + canvas.clientHeight * 0.05; this.dirX = 1; }
+        else if (side === 'right') { this.x = canvas.clientWidth + this.size + Math.random() * 80; this.y = Math.random() * (canvas.clientHeight * 0.9) + canvas.clientHeight * 0.05; this.dirX = -1; }
+        else { this.x = Math.random() * canvas.clientWidth; this.y = Math.random() * canvas.clientHeight; this.dirX = (Math.random() - 0.5); }
+        this.color = `hsla(28, 85%, ${50 + Math.floor(Math.random()*8)}%, 0.98)`;
+        this.age = 0; this.maxAge = 300 + Math.random() * 600; this.alpha = 0.98; this.disappearing = false; this.hit = false; this.lastHit = 0; this.spawnTime = Date.now(); this._lastBubble = Date.now() - Math.random()*1000;
+    }
+    update() { this.phase += 0.02; this.x += this.dirX * this.baseSpeed * speedFactor + Math.sin(this.phase*2.2)*0.6; this.y += Math.cos(this.phase*1.8)*0.3; if (this.disappearing) { this.alpha -= 0.02; this.size *= 0.994; } this.age++; const now = Date.now(); if (now - this._lastBubble > 600 + Math.random()*800) { this._lastBubble = now; particles.push(new Bubble(this.x - 2, this.y - 2)); } }
+    draw() { ctx.save(); ctx.globalAlpha = this.alpha; ctx.translate(this.x, this.y); ctx.rotate(this.rotation); const bw = this.size * this.wFactor; const bh = this.size * this.hFactor; const g = ctx.createLinearGradient(-bw*0.4,0,bw*0.4,0); g.addColorStop(0,this.color); g.addColorStop(1,'rgba(255,255,255,0.06)'); ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(0,0,bw,bh,0,0,Math.PI*2); ctx.fill(); ctx.restore(); ctx.globalAlpha=1; }
+    isOffScreen() { return (this.x < -this.size - 160 || this.x > canvas.clientWidth + this.size + 160 || this.y < -this.size - 160 || this.y > canvas.clientHeight + this.size + 160 || this.age > this.maxAge); }
+}
+
+// Seaweed (level 9) — anchored near bottom; sways but mostly stationary
+class Seaweed {
+    constructor(side = 'left') {
+        this.size = 18 + Math.random() * 28; this.wFactor = 0.4 + Math.random()*0.6; this.hFactor = 1.6 + Math.random()*1.2; this.rotation = 0; this.side = side; this.id = _jellyIdCounter++; this.phase = Math.random()*Math.PI*2; this.baseSpeed = 0; this.age=0; this.maxAge = 2000 + Math.random()*2000; this.alpha=0.98; this.disappearing=false; this.hit=false; this.lastHit=0; this.spawnTime=Date.now();
+        // anchor near bottom
+        this.x = Math.random() * canvas.clientWidth;
+        this.y = canvas.clientHeight - (10 + Math.random()*40);
+    }
+    update() { this.phase += 0.006; if (this.disappearing) { this.alpha -= 0.01; } this.age++; }
+    draw() { ctx.save(); ctx.globalAlpha = this.alpha; ctx.translate(this.x, this.y); const sway = Math.sin(this.phase) * (2 + this.size*0.04); ctx.fillStyle = `hsla(${Math.floor(Math.random()*80)+100},30%,28%,0.95)`; ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(sway*0.2, -this.size*0.4, sway, -this.size*0.9); ctx.quadraticCurveTo(sway*0.4, -this.size*1.05, 0, -this.size*1.4); ctx.closePath(); ctx.fill(); ctx.restore(); ctx.globalAlpha=1; }
+    isOffScreen() { return (this.age > this.maxAge); }
+}
+
+// Clam (level 10) — sits on bottom, fairly stationary, opens a little
+class Clam {
+    constructor(side='left'){
+        this.size = 12 + Math.random()*18; this.wFactor=1.1; this.hFactor=0.6; this.rotation=0; this.side=side; this.id=_jellyIdCounter++; this.phase=Math.random()*Math.PI*2; this.baseSpeed=0; this.age=0; this.maxAge=1200+Math.random()*1200; this.alpha=0.98; this.disappearing=false; this.hit=false; this.lastHit=0; this.spawnTime=Date.now();
+        this.x = Math.random()*canvas.clientWidth; this.y = canvas.clientHeight - (8 + Math.random()*30);
+    }
+    update(){ this.phase += 0.01; if (this.disappearing){ this.alpha -= 0.01; } this.age++; }
+    draw(){ ctx.save(); ctx.globalAlpha=this.alpha; ctx.translate(this.x,this.y); const bw=this.size*this.wFactor; const bh=this.size*this.hFactor; const open = 4 + Math.sin(this.phase)*3; ctx.fillStyle='rgba(200,180,160,0.96)'; ctx.beginPath(); ctx.ellipse(0, -open*0.5, bw, bh, 0, Math.PI, 2*Math.PI); ctx.fill(); ctx.beginPath(); ctx.ellipse(0, open*0.5, bw, bh*0.9, 0, 0, Math.PI); ctx.fillStyle='rgba(180,160,140,0.96)'; ctx.fill(); ctx.restore(); ctx.globalAlpha=1; }
+    isOffScreen(){ return (this.age > this.maxAge); }
+}
+
 let jellyfish = [];
 let spawnTimer = 0;
 const spawnInterval = 240; // in frames (~4s at 60fps)
@@ -1134,6 +1254,13 @@ function spawnJelly() {
         if (level === 1) jellyfish.push(new Jellyfish(side));
         else if (level === 2) jellyfish.push(new Stingray(side));
         else if (level === 3) jellyfish.push(new Angler(side));
+        else if (level === 4) jellyfish.push(new Manta(side));
+        else if (level === 5) jellyfish.push(new Shark(side));
+        else if (level === 6) jellyfish.push(new Eel(side));
+        else if (level === 7) jellyfish.push(new Starfish(side));
+        else if (level === 8) jellyfish.push(new Goldfish(side));
+        else if (level === 9) jellyfish.push(new Seaweed(side));
+        else if (level === 10) jellyfish.push(new Clam(side));
         else jellyfish.push(new Manta(side));
     }
 }
