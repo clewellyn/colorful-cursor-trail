@@ -25,6 +25,9 @@ const maxJelly = 12; // maximum simultaneous jellyfish
 // Jellyfish hit sound element
 const jellySfx = document.getElementById('jellySfx');
 
+// unified sound enabled flag (controls both music and chimes)
+let soundEnabled = true;
+
 
 // id counter for debug/logging
 let _jellyIdCounter = 1;
@@ -684,17 +687,30 @@ function unlockAudio() {
 document.addEventListener('pointerdown', unlockAudio, { once: true, capture: true });
 
 // Music controls wiring
-if (toggleMusic) toggleMusic.addEventListener('click', () => {
-    try {
-        if (bgMusic.paused) {
-            bgMusic.play().catch(()=>{});
-            toggleMusic.textContent = '🔇 Mute Music';
-        } else {
-            bgMusic.pause();
-            toggleMusic.textContent = '🎵 Play Music';
-        }
-    } catch (e) {}
-});
+if (toggleMusic) {
+    const applySoundButtonState = () => {
+        try {
+            toggleMusic.textContent = soundEnabled ? '🔊 Sound On' : '🔈 Sound Off';
+        } catch (e) {}
+    };
+    toggleMusic.addEventListener('click', () => {
+        try {
+            soundEnabled = !soundEnabled;
+            // music
+            if (soundEnabled) {
+                try { bgMusic.play().catch(()=>{}); } catch (e) {}
+            } else {
+                try { bgMusic.pause(); } catch (e) {}
+            }
+            // sfx
+            sfxEnabled = soundEnabled;
+            applySoundButtonState();
+            try { appendLog('info', `[sound] toggled ${soundEnabled ? 'on' : 'off'}`); } catch (e) {}
+        } catch (e) {}
+    });
+    // initialize button label
+    applySoundButtonState();
+}
 
 if (volumeSlider) volumeSlider.addEventListener('input', (e) => { try { bgMusic.volume = Number(e.target.value); } catch (e) {} });
 
@@ -1511,13 +1527,13 @@ function setPaused(p) {
         appendLog('info', '[pause] paused - sfx disabled');
         if (pauseBtn) pauseBtn.textContent = '▶ Resume';
     } else {
-        // resume
-        try { sfxEnabled = true; } catch (e) {}
+        // resume (respect current soundEnabled state)
+        try { sfxEnabled = soundEnabled; } catch (e) {}
         // re-attach mouse listener
         try {
             if (!mouseListenerAttached) { canvas.addEventListener('mousemove', onCanvasMouseMove); mouseListenerAttached = true; }
         } catch (e) {}
-        if (_wasMusicPlaying) try { bgMusic.play().catch(()=>{}); } catch (e) {}
+        if (_wasMusicPlaying && soundEnabled) try { bgMusic.play().catch(()=>{}); } catch (e) {}
         // restart animation
         rafId = requestAnimationFrame(animate);
         if (pauseBtn) pauseBtn.textContent = '⏸️ Pause';
