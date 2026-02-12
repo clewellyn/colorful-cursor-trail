@@ -1181,27 +1181,55 @@ class Eel {
     isOffScreen() { return (this.x < -this.size - 300 || this.x > canvas.clientWidth + this.size + 300 || this.y < -this.size - 300 || this.y > canvas.clientHeight + this.size + 300 || this.age > this.maxAge); }
 }
 
-// Starfish (level 7) — smaller, slow-moving or drifting, radial arms
+// Starfish (level 7) — slightly larger, gentle smooth floating/drifting with radial arms
 class Starfish {
     constructor(side = 'left') {
-        this.size = 8 + Math.random() * 12; this.wFactor = 1; this.hFactor = 1; this.rotation = Math.random() * Math.PI * 2; this.side = side; this.id = _jellyIdCounter++; this.phase = Math.random() * Math.PI * 2; this.baseSpeed = 0.04 + Math.random() * 0.12; this.dirX = 0; this.dirY = 0;
-        if (side === 'left') { this.x = -this.size - Math.random() * 60; this.y = Math.random() * (canvas.clientHeight * 0.9) + canvas.clientHeight * 0.05; this.dirX = 1; }
-        else if (side === 'right') { this.x = canvas.clientWidth + this.size + Math.random() * 60; this.y = Math.random() * (canvas.clientHeight * 0.9) + canvas.clientHeight * 0.05; this.dirX = -1; }
-        else { this.x = Math.random() * canvas.clientWidth; this.y = Math.random() * canvas.clientHeight; this.dirX = (Math.random() - 0.5); }
-        const h = Math.floor(Math.random() * 40) + 20; const sat = 60 + Math.floor(Math.random() * 30); const light = 54 + Math.floor(Math.random() * 20); this.color = `hsla(${h}, ${sat}%, ${light}%, 0.98)`;
-        this.age = 0; this.maxAge = 700 + Math.random() * 900; this.alpha = 0.98; this.disappearing = false; this.hit = false; this.lastHit = 0; this.spawnTime = Date.now();
+        // make starfish a bit larger and more visible
+        this.size = 12 + Math.random() * 14; // 12..26
+        this.wFactor = 1; this.hFactor = 1; this.rotation = Math.random() * Math.PI * 2; this.side = side; this.id = _jellyIdCounter++; this.phase = Math.random() * Math.PI * 2;
+        this.baseSpeed = 0.02 + Math.random() * 0.08; // slower base speed
+        // start position chosen by side or random
+        if (side === 'left') { this.x = -this.size - Math.random() * 60; this.y = Math.random() * (canvas.clientHeight * 0.9) + canvas.clientHeight * 0.05; this.vx = 0.6 + Math.random() * 0.6; this.vy = (Math.random()-0.5) * 0.3; }
+        else if (side === 'right') { this.x = canvas.clientWidth + this.size + Math.random() * 60; this.y = Math.random() * (canvas.clientHeight * 0.9) + canvas.clientHeight * 0.05; this.vx = - (0.6 + Math.random() * 0.6); this.vy = (Math.random()-0.5) * 0.3; }
+        else { this.x = Math.random() * canvas.clientWidth; this.y = Math.random() * canvas.clientHeight; this.vx = (Math.random() - 0.5) * 0.6; this.vy = (Math.random() - 0.5) * 0.3; }
+        const h = Math.floor(Math.random() * 40) + 20; const sat = 60 + Math.floor(Math.random() * 30); const light = 52 + Math.floor(Math.random() * 18); this.color = `hsla(${h}, ${sat}%, ${light}%, 0.98)`;
+        this.age = 0; this.maxAge = 900 + Math.random() * 1000; this.alpha = 0.98; this.disappearing = false; this.hit = false; this.lastHit = 0; this.spawnTime = Date.now();
     }
-    update() { this.phase += 0.008; this.x += this.dirX * this.baseSpeed * speedFactor; if (this.disappearing) { this.alpha -= 0.02; this.size *= 0.994; } this.age++; }
+    update() {
+        // smoother, lower-frequency bob and gentle drift
+        this.phase += 0.004 + Math.random() * 0.002;
+        // gentle sinusoidal drift plus a small constant velocity
+        const bobX = Math.sin(this.phase * 0.7) * 0.6;
+        const bobY = Math.cos(this.phase * 0.9) * 0.6;
+        this.x += (this.vx * this.baseSpeed) * speedFactor + bobX * 0.18;
+        this.y += (this.vy * this.baseSpeed) * speedFactor + bobY * 0.22;
+        // gentle rotation over time
+        this.rotation += Math.sin(this.phase * 0.3) * 0.002;
+        if (this.disappearing) { this.alpha -= 0.018; this.size *= 0.996; }
+        this.age++;
+        // wrap edges so starfish drift smoothly across
+        if (this.x < -this.size) this.x = canvas.clientWidth + this.size;
+        if (this.x > canvas.clientWidth + this.size) this.x = -this.size;
+        if (this.y < -this.size) this.y = canvas.clientHeight + this.size;
+        if (this.y > canvas.clientHeight + this.size) this.y = -this.size;
+    }
     draw() {
-        ctx.save(); ctx.globalAlpha = this.alpha; ctx.translate(this.x, this.y); ctx.rotate(this.rotation);
+        ctx.save(); ctx.globalAlpha = Math.max(0.6, this.alpha); ctx.translate(this.x, this.y); ctx.rotate(this.rotation);
         const r = this.size;
+        // soft shadow to make starfish pop
+        ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = Math.max(4, r * 0.2);
         ctx.fillStyle = this.color;
-        for (let i=0;i<5;i++){
-            ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(i * Math.PI * 2 / 5) * r, Math.sin(i * Math.PI * 2 / 5) * r); ctx.lineTo(Math.cos((i+0.5) * Math.PI * 2 /5) * (r*0.5), Math.sin((i+0.5) * Math.PI * 2 /5) * (r*0.5)); ctx.closePath(); ctx.fill();
+        for (let i = 0; i < 5; i++) {
+            const ang = i * Math.PI * 2 / 5;
+            const ax = Math.cos(ang) * r;
+            const ay = Math.sin(ang) * r;
+            const midx = Math.cos(ang + 0.5) * (r * 0.5);
+            const midy = Math.sin(ang + 0.5) * (r * 0.5);
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(ax, ay); ctx.lineTo(midx, midy); ctx.closePath(); ctx.fill();
         }
-        ctx.restore(); ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0; ctx.restore(); ctx.globalAlpha = 1;
     }
-    isOffScreen() { return (this.x < -this.size - 120 || this.x > canvas.clientWidth + this.size + 120 || this.y < -this.size - 120 || this.y > canvas.clientHeight + this.size + 120 || this.age > this.maxAge); }
+    isOffScreen() { return (this.age > this.maxAge); }
 }
 
 // Lionfish (level 8) — a saltwater species with vertical fins and bold stripes
