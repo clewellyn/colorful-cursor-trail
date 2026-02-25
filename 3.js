@@ -1432,38 +1432,70 @@ class Seaweed {
 // Clam (level 10) — sits on bottom, fairly stationary, opens a little
 class Clam {
     constructor(side='left'){
-        this.size = 12 + Math.random()*18;
-        this.wFactor = 1.1; this.hFactor = 0.6; this.rotation = 0; this.side = side; this.id = _jellyIdCounter++;
-        this.phase = Math.random()*Math.PI*2;
-        // give clams a small horizontal drift so they traverse like other creatures
-        this.baseSpeed = 0.04 + Math.random() * 0.08; // slow drift
-        this.age = 0; this.maxAge = 1200 + Math.random() * 1200; this.alpha = 0.98; this.disappearing = false; this.hit = false; this.lastHit = 0; this.spawnTime = Date.now();
-        // place clams near the bottom and choose a travel direction (left or right)
-        const startSide = Math.random() < 0.5 ? 'left' : 'right';
-        if (startSide === 'left') {
-            this.x = -this.size - Math.random() * 80;
-            this.dirX = 1;
+        // more varied clams: sizes, proportions, and gentle swimming motion
+        this.size = 10 + Math.random() * 38; // 10..48
+        this.wFactor = 0.9 + Math.random() * 0.6; this.hFactor = 0.5 + Math.random() * 0.9;
+        this.rotation = (Math.random() - 0.5) * 0.18;
+        this.side = side; this.id = _jellyIdCounter++;
+        this.phase = Math.random() * Math.PI * 2;
+        // gentle swimming parameters
+        // make clams a bit more lively: faster horizontal drift, occasional vertical swimmers
+        this.baseSpeed = 0.08 + Math.random() * 0.26; // increased speed for livelier motion
+        this.swaySpeed = 0.008 + Math.random() * 0.02;
+        this.swayAmp = 0.8 + Math.random() * 2.4;
+        // give a modest horizontal velocity (may be left or right) and small vertical bias
+        this.dirX = Math.random() < 0.5 ? -1 : 1;
+        this.dirY = (Math.random() - 0.45) * 0.18;
+        this.age = 0; this.maxAge = 900 + Math.random() * 1600; this.alpha = 0.98; this.disappearing = false; this.hit = false; this.lastHit = 0; this.spawnTime = Date.now();
+        // start position: often near the bottom, but allow a wide Y-range so clams don't only appear at the very bottom
+        // if a side was specified, prefer spawning from that side off-screen; otherwise spawn from a random edge
+        if (side === 'left') {
+            this.x = -this.size - Math.random() * 120;
+        } else if (side === 'right') {
+            this.x = canvas.clientWidth + this.size + Math.random() * 120;
+        } else if (side === 'top') {
+            this.x = Math.random() * canvas.clientWidth;
+        } else if (side === 'bottom') {
+            this.x = Math.random() * canvas.clientWidth;
         } else {
-            this.x = canvas.clientWidth + this.size + Math.random() * 80;
-            this.dirX = -1;
+            // random horizontal start
+            this.x = Math.random() * canvas.clientWidth;
         }
-        this.y = canvas.clientHeight - (8 + Math.random()*30);
+        // vertical spawn: bias toward lower half but allow mid-screen and occasionally higher positions
+        const roll = Math.random();
+        if (roll < 0.55) {
+            // lower band (sea floor-ish)
+            this.y = canvas.clientHeight - (12 + Math.random() * (canvas.clientHeight * 0.16));
+        } else if (roll < 0.9) {
+            // mid water
+            this.y = canvas.clientHeight * (0.45 + Math.random() * 0.35);
+        } else {
+            // occasional higher spawn for variety
+            this.y = canvas.clientHeight * (0.18 + Math.random() * 0.22);
+        }
     }
     update(){
-        this.phase += 0.01;
-        // move slowly horizontally across the bottom
-        this.x += this.dirX * this.baseSpeed * speedFactor;
-        if (this.disappearing) { this.alpha -= 0.01; }
+        this.phase += this.swaySpeed;
+        // horizontal swim + slight vertical bob
+        const sway = Math.sin(this.phase * 1.8) * (this.swayAmp);
+        // stronger horizontal component so clams drift visibly across the scene
+        this.x += this.dirX * this.baseSpeed * speedFactor * (0.85 + Math.random() * 0.3) + sway * 0.1;
+        this.y += this.dirY * this.baseSpeed * speedFactor + Math.cos(this.phase * 0.9) * 0.45;
+        if (this.disappearing) { this.alpha -= 0.01; this.size *= 0.997; }
         this.age++;
     }
     draw(){
-        ctx.save(); ctx.globalAlpha=this.alpha; ctx.translate(this.x,this.y);
+        ctx.save(); ctx.globalAlpha=this.alpha; ctx.translate(this.x,this.y); ctx.rotate(this.rotation);
         const bw=this.size*this.wFactor; const bh=this.size*this.hFactor; const open = 4 + Math.sin(this.phase)*3;
-        ctx.fillStyle='rgba(200,180,160,0.96)'; ctx.beginPath(); ctx.ellipse(0, -open*0.5, bw, bh, 0, Math.PI, 2*Math.PI); ctx.fill();
-        ctx.beginPath(); ctx.ellipse(0, open*0.5, bw, bh*0.9, 0, 0, Math.PI); ctx.fillStyle='rgba(180,160,140,0.96)'; ctx.fill();
+        // shell bottom
+        ctx.fillStyle='rgba(200,200,220,0.96)'; ctx.beginPath(); ctx.ellipse(0, -open*0.5, bw, bh, 0, Math.PI, 2*Math.PI); ctx.fill();
+        // shell top
+        ctx.beginPath(); ctx.ellipse(0, open*0.5, bw, bh*0.92, 0, 0, Math.PI); ctx.fillStyle='rgba(120,160,200,0.96)'; ctx.fill();
+        // subtle highlight
+        ctx.fillStyle='rgba(255,255,255,0.06)'; ctx.beginPath(); ctx.ellipse(bw*0.12, -bh*0.05, bw*0.36, bh*0.28, 0, 0, Math.PI*2); ctx.fill();
         ctx.restore(); ctx.globalAlpha=1;
     }
-    isOffScreen(){ return (this.x < -this.size - 220 || this.x > canvas.clientWidth + this.size + 220 || this.age > this.maxAge); }
+    isOffScreen(){ return (this.x < -this.size - 420 || this.x > canvas.clientWidth + this.size + 420 || this.age > this.maxAge); }
 }
 
 // Whale (end-game) — large floating celebratory whale that drifts across the screen
@@ -1538,9 +1570,31 @@ function triggerWin() {
         document.body.appendChild(winEl);
     } catch (e) {}
 
-    // play whale chime (if available) and push a big whale into the world so it gracefully floats across
+    // play whale chime (if available) and show an animated DOM whale that swims across the overlay
     try { playWhaleSfx(); } catch (e) {}
-    try { jellyfish.push(new Whale()); } catch (e) {}
+    try {
+        // create an animated DOM whale for the win overlay
+        const domWhale = document.createElement('div');
+        domWhale.className = 'win-whale';
+        domWhale.innerHTML = `<div class="whale-body"></div>`;
+        // position off-screen to the right and animate leftwards
+        domWhale.style.position = 'fixed';
+        domWhale.style.right = '-30%';
+        domWhale.style.top = '42%';
+        domWhale.style.zIndex = 4500;
+        domWhale.style.pointerEvents = 'none';
+        document.body.appendChild(domWhale);
+        // trigger CSS animation by forcing layout then applying class
+        requestAnimationFrame(() => { domWhale.classList.add('swim'); });
+        // remove after animation finishes
+        setTimeout(() => { try { domWhale.remove(); } catch (e) {} }, 7200);
+    } catch (e) {}
+
+    // also spawn a canvas whale so the final scene has a big blue whale swimming across the canvas
+    try {
+        // push into the same entity list so it gets updated and drawn by the main loop
+        jellyfish.push(new Whale());
+    } catch (e) {}
 
     // spawn confetti pieces across the top area
     try {
@@ -1586,7 +1640,15 @@ function spawnJelly() {
         else if (level === 7) jellyfish.push(new Starfish(side));
     else if (level === 8) jellyfish.push(new Lionfish(side));
         else if (level === 9) jellyfish.push(new Seaweed(side));
-        else if (level === 10) jellyfish.push(new Clam(side));
+        else if (level === 10) {
+            // Level 10: spawn clams more often and sometimes spawn 2 at once for liveliness.
+            // Choose independent sides for each spawned clam so they can appear from different edges.
+            const spawnCount = 1 + (Math.random() < 0.45 ? 1 : 0);
+            for (let s = 0; s < spawnCount; s++) {
+                const sideChoice = sides[Math.floor(Math.random() * sides.length)];
+                jellyfish.push(new Clam(sideChoice));
+            }
+        }
         else jellyfish.push(new Manta(side));
     }
 }
@@ -1671,9 +1733,10 @@ function animate() {
             }
         }
 
-        // spawn timer
+        // spawn timer (use a faster effective interval for level 10 so clams appear more frequently)
         spawnTimer++;
-        if (spawnTimer > spawnInterval) {
+        const effectiveSpawnInterval = (level === 10) ? Math.max(36, Math.floor(spawnInterval * 0.45)) : spawnInterval;
+        if (spawnTimer > effectiveSpawnInterval) {
             spawnTimer = 0;
             spawnJelly();
         }

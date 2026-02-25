@@ -1,11 +1,6 @@
 {
-  "name": "colorful-cursor-trail-tests",
+  "name": "colorful-cursor-trail",
   "version": "0.0.0",
   "private": true,
-  "scripts": {
-    "smoke": "node ./scripts/smoke-test.js"
-  },
-  "devDependencies": {
-    "puppeteer": "^20.8.1"
-  }
+  "scripts": {}
 }

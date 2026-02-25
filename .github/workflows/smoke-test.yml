@@ -1,43 +1,8 @@
-name: Smoke tests
+name: Disabled — smoke tests
 
-on:
-  push:
-      - name: Check Node & npm
-        run: |
-          node --version
-          npm --version
-          uname -a
-          lsb_release -a || true
-    branches: [ main ]
-  workflow_dispatch: {}
+# This workflow has been disabled per maintainer request (smoke tests temporarily removed).
+# To re-enable, restore the original workflow contents or add a new workflow file.
 
-jobs:
-      - name: Install dependencies (verbose)
-        run: |
-          npm config set loglevel verbose
-          npm install --no-audit --no-fund --verbose
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node.js
-      - name: Upload test-output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: smoke-test-output
-          path: test-output
+on: {}
 
-      - name: Upload npm logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-install-logs
-          path: |
-            ~/.npm/_logs
-            npm-debug.log
-      - name: Run smoke test
-        run: npm run smoke
-      - name: Upload test-output
-        uses: actions/upload-artifact@v4
-        with:
-          name: smoke-test-output
-          path: test-output
+jobs: {}

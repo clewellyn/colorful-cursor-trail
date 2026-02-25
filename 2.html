@@ -48,6 +48,26 @@
                 <button id="exportLogs" class="retro-button small">Export Logs</button>
                 <small style="color:#bfcfff; font-size:12px;">Show detection radii and movement vector to diagnose false hits.</small>
             </div>
+            <div style="margin-top:12px; border-top:1px dashed rgba(255,255,255,0.04); padding-top:10px;">
+                <label for="skipLevelSelect" style="font-size:13px; color:#dfe8ff; display:block; margin-bottom:6px;">Skip to level</label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <select id="skipLevelSelect" style="background:rgba(10,14,20,0.7); color:#dfefff; padding:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.04);">
+                        <option value="">-- select level --</option>
+                        <option value="1">Level 1 — Jellyfish</option>
+                        <option value="2">Level 2 — Stingrays</option>
+                        <option value="3">Level 3 — Anglers</option>
+                        <option value="4">Level 4 — Mantas</option>
+                        <option value="5">Level 5 — Sharks</option>
+                        <option value="6">Level 6 — Eels</option>
+                        <option value="7">Level 7 — Starfish</option>
+                        <option value="8">Level 8 — Lionfish</option>
+                        <option value="9">Level 9 — Seaweed</option>
+                        <option value="10">Level 10 — Clams</option>
+                    </select>
+                    <button id="skipLevelBtn" class="retro-button small">Go</button>
+                </div>
+                <small style="display:block; margin-top:8px; color:#bfcfff; font-size:12px;">Quick jump to a level for testing (useful for levels 9 &amp; 10).</small>
+            </div>
         </div>
     <audio id="bgMusic" loop>
         <source src="music.mp3" type="audio/mp3">

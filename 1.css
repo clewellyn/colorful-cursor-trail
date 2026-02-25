@@ -303,3 +303,13 @@ body {
 
 /* Confetti hint (if any DOM element needed) — confetti is rendered on canvas */
 .confetti-hint { position: fixed; top: 18px; right: 18px; z-index: 4500; color: #fff8d8; font-size:12px; opacity:0.9; }
+
+/* Win whale DOM animation */
+.win-whale { width: 34vw; height: 14vh; transform: translateX(0); transition: transform 6.8s cubic-bezier(.2,.9,.3,1); }
+.win-whale .whale-body { width: 100%; height: 100%; background: linear-gradient(180deg,#4db8ff,#2f88d1); border-radius: 48% 48% 40% 40% / 60% 60% 40% 40%; box-shadow: 0 10px 30px rgba(0,0,0,0.45); position: relative; }
+.win-whale.swim { transform: translateX(-140vw); }
+.win-whale .whale-body::after { content: ''; position: absolute; left: 6%; top: 46%; width: 18%; height: 10%; background: rgba(255,255,255,0.08); border-radius: 40%; }
+.win-whale .whale-body::before { content: ''; position: absolute; right: -6%; top: 36%; width: 20%; height: 24%; background: linear-gradient(180deg,#2f88d1,#19608f); border-radius: 40% 10% 60% 50%; transform: rotate(-12deg); }
+
+/* optional playful eye */
+.win-whale .eye { position: absolute; left: 18%; top: 34%; width: 8px; height: 8px; background: #fff; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255,255,255,0.02); }
