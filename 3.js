@@ -1439,10 +1439,10 @@ class Clam {
         this.side = side; this.id = _jellyIdCounter++;
         this.phase = Math.random() * Math.PI * 2;
         // gentle swimming parameters
-        // make clams a bit more lively: faster horizontal drift, occasional vertical swimmers
-        this.baseSpeed = 0.08 + Math.random() * 0.26; // increased speed for livelier motion
-        this.swaySpeed = 0.008 + Math.random() * 0.02;
-        this.swayAmp = 0.8 + Math.random() * 2.4;
+    // make clams noticeably more lively: higher base speed and stronger sway so they feel active
+    this.baseSpeed = 0.12 + Math.random() * 0.38; // faster overall (approx 0.12..0.5)
+    this.swaySpeed = 0.01 + Math.random() * 0.028;
+    this.swayAmp = 1.0 + Math.random() * 3.0;
         // give a modest horizontal velocity (may be left or right) and small vertical bias
         this.dirX = Math.random() < 0.5 ? -1 : 1;
         this.dirY = (Math.random() - 0.45) * 0.18;
@@ -1477,9 +1477,9 @@ class Clam {
     update(){
         this.phase += this.swaySpeed;
         // horizontal swim + slight vertical bob
-        const sway = Math.sin(this.phase * 1.8) * (this.swayAmp);
-        // stronger horizontal component so clams drift visibly across the scene
-        this.x += this.dirX * this.baseSpeed * speedFactor * (0.85 + Math.random() * 0.3) + sway * 0.1;
+    const sway = Math.sin(this.phase * 1.8) * (this.swayAmp);
+    // stronger horizontal component and wider variability so clams sometimes dart
+    this.x += this.dirX * this.baseSpeed * speedFactor * (1.0 + Math.random() * 0.6) + sway * 0.12;
         this.y += this.dirY * this.baseSpeed * speedFactor + Math.cos(this.phase * 0.9) * 0.45;
         if (this.disappearing) { this.alpha -= 0.01; this.size *= 0.997; }
         this.age++;
