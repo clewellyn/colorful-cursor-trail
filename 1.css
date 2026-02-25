@@ -66,7 +66,7 @@ body {
 }
 
 /* small ear/settings toggle button */
-.game-hud { position: fixed; left: 12px; top: 12px; width: 180px; background: rgba(8,12,18,0.6); border: 1px solid rgba(255,255,255,0.04); padding: 8px 48px 8px 10px; border-radius: 8px; z-index: 2500; color: #dfefff; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; font-size: 13px; }
+.game-hud { position: fixed; left: 12px; top: 12px; width: 220px; background: rgba(8,12,18,0.6); border: 1px solid rgba(255,255,255,0.04); padding: 8px 96px 8px 10px; border-radius: 8px; z-index: 2500; color: #dfefff; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; font-size: 13px; }
 .game-hud .settings-toggle {
     position: absolute;
     right: 8px;
@@ -228,21 +228,21 @@ body {
     position: fixed;
     left: 12px;
     top: 12px;
-    width: 180px;
+    width: 220px;
     background: rgba(8,12,18,0.6);
     border: 1px solid rgba(255,255,255,0.04);
-    padding: 8px 48px 8px 10px; /* extra right padding to avoid overlap with gear */
+    padding: 8px 96px 8px 10px; /* increased right padding to avoid overlap with sound indicator and gear */
     border-radius: 8px;
     z-index: 2500;
     color: #dfefff;
     font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
     font-size: 13px;
 }
-.game-hud .hud-row { display:flex; justify-content:space-between; margin-bottom:6px; }
+.game-hud .hud-row { display:flex; justify-content:space-between; margin-bottom:6px; padding-right:84px; }
 .game-hud .hud-label { opacity:0.8; font-size:12px; }
 .game-hud .hud-value { font-weight:700; }
 /* HUD sound indicator */
-.game-hud .hud-sound { position: absolute; right: 48px; top: 8px; display:flex; align-items:center; gap:8px; font-size:12px; color:#dfefff; }
+.game-hud .hud-sound { position: absolute; right: 64px; top: 8px; display:flex; align-items:center; gap:8px; font-size:12px; color:#dfefff; }
 .game-hud .hud-sound-dot { width:10px; height:10px; border-radius:50%; display:inline-block; box-shadow: 0 0 0 rgba(0,0,0,0); }
 .game-hud .hud-sound-dot.on { background: #66ff88; box-shadow: 0 0 6px rgba(102,255,136,0.24); }
 .game-hud .hud-sound-dot.off { background: #ff7b7b; box-shadow: 0 0 4px rgba(255,120,120,0.18); }
@@ -288,3 +288,18 @@ body {
 }
 
 .level-transition .lt-sub { display:block; font-size:13px; color:#cfeff8; margin-top:8px; opacity:0.9; }
+
+/* Win overlay specific styling */
+.win-overlay {
+    background: linear-gradient(180deg, rgba(6,18,36,0.88), rgba(4,8,16,0.9));
+    border: 1px solid rgba(255,230,160,0.08);
+    color: #fff8e8;
+    font-size: 34px;
+    padding: 28px 36px;
+    text-shadow: 0 4px 18px rgba(0,0,0,0.6);
+}
+.win-overlay .lt-main { font-weight:800; letter-spacing:0.6px; color: #fff; }
+.win-overlay .lt-sub { color: rgba(240,240,255,0.86); font-size:15px; margin-top:12px; }
+
+/* Confetti hint (if any DOM element needed) — confetti is rendered on canvas */
+.confetti-hint { position: fixed; top: 18px; right: 18px; z-index: 4500; color: #fff8d8; font-size:12px; opacity:0.9; }

@@ -24,9 +24,12 @@ const maxJelly = 12; // maximum simultaneous jellyfish
 
 // Jellyfish hit sound element
 const jellySfx = document.getElementById('jellySfx');
+// Whale win chime (optional)
+const whaleSfx = document.getElementById('whaleSfx');
 
 // unified sound enabled flag (controls both music and chimes)
-let soundEnabled = true;
+// Persisted in localStorage so user preference survives reloads. Default: off.
+let soundEnabled = (localStorage.getItem('soundEnabled') === '1');
 
 
 // id counter for debug/logging
@@ -62,6 +65,61 @@ function appendLog(type, text) {
     if (panel) {
         panel.innerHTML = inPageLogs.slice().reverse().map(l => `<div class="log-entry ${l.type}">${l.text}</div>`).join('');
     }
+}
+
+// Play whale win chime (similar clone logic to allow overlap). Respects sfxEnabled and soundEnabled.
+function playWhaleSfx() {
+    if (!whaleSfx) return;
+    if (!sfxEnabled || !soundEnabled) return;
+    try {
+        const s = whaleSfx.cloneNode(true);
+        try { s.dataset.sfxClone = '1'; } catch (e) {}
+        s.volume = volumeSlider ? Number(volumeSlider.value) : 0.6;
+        s.playbackRate = 0.95 + Math.random() * 0.12;
+        s.currentTime = 0;
+        document.body.appendChild(s);
+        const p = s.play();
+        if (p && typeof p.catch === 'function') p.catch(() => { try { s.remove(); } catch (e) {} });
+        s.onended = () => { try { s.remove(); } catch (e) {} };
+    } catch (e) {
+        try { whaleSfx.currentTime = 0; whaleSfx.play().catch(()=>{}); } catch (ex) {}
+    }
+}
+
+// Confetti particle rendered on canvas during win sequence
+class Confetti {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.size = 6 + Math.random() * 8;
+        this.vx = (Math.random() - 0.5) * 4;
+        this.vy = -2 - Math.random() * 4;
+        this.spin = (Math.random() - 0.5) * 0.2;
+        this.rotation = Math.random() * Math.PI * 2;
+        this.color = ['#ff4d4d','#ffd24d','#4dff88','#4dd0ff','#c28dff'][Math.floor(Math.random()*5)];
+        this.alpha = 1;
+        this.life = 0;
+        this.maxLife = 140 + Math.random() * 80;
+    }
+    update() {
+        this.vy += 0.08; // gravity
+        this.x += this.vx;
+        this.y += this.vy;
+        this.rotation += this.spin;
+        this.life++;
+        if (this.life > this.maxLife - 20) this.alpha -= 0.04;
+    }
+    draw() {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, this.alpha);
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.rotation);
+        ctx.fillStyle = this.color;
+        ctx.fillRect(-this.size*0.5, -this.size*0.5, this.size, this.size*0.6);
+        ctx.restore();
+        ctx.globalAlpha = 1;
+    }
+    isDead() { return this.alpha <= 0 || this.life > this.maxLife || this.y > canvas.clientHeight + 40; }
 }
 
 function initSettingsUI() {
@@ -117,7 +175,7 @@ function getEnemyLabel() {
         if (level === 5) return 'Sharks';
         if (level === 6) return 'Eels';
         if (level === 7) return 'Starfish';
-        if (level === 8) return 'Goldfish';
+    if (level === 8) return 'Lionfish';
         if (level === 9) return 'Seaweed';
         if (level === 10) return 'Clams';
         return 'Creatures';
@@ -213,7 +271,7 @@ function createLevelTransition(text, cb) {
 createHUD();
 updateHUD();
 
-// Attach settings toggle wiring now that HUD (and its button) exists
+// Re-wire settings toggle so the gear in the HUD shows/hides the interaction settings
 try {
     const settingsPanelEl = document.getElementById('settingsPanel');
     const settingsToggleBtn = document.getElementById('settingsToggle');
@@ -236,30 +294,6 @@ try {
             }
         });
     }
-} catch (e) {}
-
-// As a fallback, also handle clicks via event delegation (covers any timing issues)
-try {
-    document.addEventListener('click', (ev) => {
-        const t = ev.target;
-        if (!t) return;
-        const btn = t.closest && t.closest('#settingsToggle');
-        if (!btn) return;
-        const panel = document.getElementById('settingsPanel');
-        if (!panel) return;
-        const isOpen = panel.classList.contains('open');
-        if (isOpen) {
-            panel.classList.remove('open');
-            panel.classList.add('collapsed');
-            btn.setAttribute('aria-expanded', 'false');
-            try { appendLog('info', '[settings] closed (delegated)'); showToast('Settings closed', 900, 'info'); } catch (e) {}
-        } else {
-            panel.classList.remove('collapsed');
-            panel.classList.add('open');
-            btn.setAttribute('aria-expanded', 'true');
-            try { appendLog('info', '[settings] opened (delegated)'); showToast('Settings opened', 900, 'success'); } catch (e) {}
-        }
-    });
 } catch (e) {}
 
 // Reset settings to sensible defaults and update UI/localStorage
@@ -456,7 +490,8 @@ if (exportLogsBtn) {
 // Play jelly chime safely by cloning the audio element so multiple sounds can overlap.
 function playJellySfx() {
     if (!jellySfx) return;
-    if (!sfxEnabled) return;
+    // guard: require both sfxEnabled and global soundEnabled
+    if (!sfxEnabled || !soundEnabled) return;
     try {
         const s = jellySfx.cloneNode(true);
         // mark clones so we can find/remove them when pausing
@@ -552,6 +587,7 @@ class Bubble {
 }
 
 let particles = [];
+let confetti = []; // confetti particles for win celebration
 let mouse = { x: null, y: null };
 let prevMouse = { x: null, y: null };
 // track whether the mouse listener is currently attached (so we can remove it when paused)
@@ -559,7 +595,7 @@ let mouseListenerAttached = false;
 // global cooldown to avoid many chimes in quick succession
 let lastSfxTime = 0;
 // whether we allow jelly sfx to play (paused will set this false)
-let sfxEnabled = true;
+let sfxEnabled = soundEnabled;
 // pause/resume controls
 let paused = false;
 let rafId = null;
@@ -663,8 +699,17 @@ function onCanvasMouseMove(event) {
                     part.speedY = Math.sin(angle) * speed;
                     particles.push(part);
                 }
+                // spawn bubbly pop particles for a nicer pop effect
+                try {
+                    const bubbleCount = 6 + Math.floor(Math.random() * 6);
+                    for (let b = 0; b < bubbleCount; b++) {
+                        const bx = j.x + (Math.random() - 0.5) * (j.size * 0.8);
+                        const by = j.y + (Math.random() - 0.5) * (j.size * 0.6);
+                        particles.push(new Bubble(bx, by));
+                    }
+                } catch (e) {}
                 // if we've reached the pops required, advance level (with a transition)
-                try { if (poppedCount >= popsToNextLevel) { goToNextLevel(); } } catch (e) {}
+                try { if (poppedCount >= popsToNextLevel) { ensureAdvance(); } } catch (e) {}
                 break; // only trigger one jelly per movement
             } else {
                 // suppressed — log why for diagnostics
@@ -720,7 +765,18 @@ if (toggleMusic) {
             }
             // sfx
             sfxEnabled = soundEnabled;
+            try { localStorage.setItem('soundEnabled', soundEnabled ? '1' : '0'); } catch (e) {}
+            // If turning sound off, stop and remove any currently playing cloned sfx immediately
+            if (!soundEnabled) {
+                try {
+                    const clones = document.querySelectorAll('audio[data-sfx-clone]');
+                    clones.forEach(c => { try { c.pause(); c.currentTime = 0; c.remove(); } catch (e) {} });
+                } catch (e) {}
+                try { if (jellySfx) { jellySfx.pause(); jellySfx.currentTime = 0; } } catch (e) {}
+                try { if (whaleSfx) { whaleSfx.pause(); whaleSfx.currentTime = 0; } } catch (e) {}
+            }
             applySoundButtonState();
+            try { updateHUD(); } catch (e) {}
             try { appendLog('info', `[sound] toggled ${soundEnabled ? 'on' : 'off'}`); } catch (e) {}
         } catch (e) {}
     });
@@ -1345,6 +1401,106 @@ class Clam {
     isOffScreen(){ return (this.age > this.maxAge); }
 }
 
+// Whale (end-game) — large floating celebratory whale that drifts across the screen
+class Whale {
+    constructor() {
+        this.size = 160 + Math.random() * 60;
+        this.x = canvas.clientWidth + this.size * 1.5;
+        this.y = Math.max(120, canvas.clientHeight * 0.45 + (Math.random() - 0.5) * 80);
+        this.speed = 0.6 + Math.random() * 0.4;
+        this.phase = Math.random() * Math.PI * 2;
+        this.alpha = 1;
+        this.id = _jellyIdCounter++;
+        this.age = 0;
+        this.maxAge = 12000;
+    }
+    update() {
+        this.phase += 0.008;
+        this.x -= this.speed;
+        this.y += Math.sin(this.phase) * 0.6;
+        this.age++;
+        // slowly fade when offscreen left
+        if (this.x < -this.size * 1.8) this.alpha -= 0.01;
+    }
+    draw() {
+        ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha);
+        ctx.translate(this.x, this.y);
+        // body
+        const bw = this.size; const bh = this.size * 0.5;
+        ctx.fillStyle = 'rgba(72,140,200,0.96)';
+        ctx.beginPath(); ctx.ellipse(0, 0, bw, bh, 0, 0, Math.PI * 2); ctx.fill();
+        // back fluke
+        ctx.beginPath(); ctx.moveTo(-bw * 0.55, 0); ctx.quadraticCurveTo(-bw * 0.9, -bw * 0.18, -bw * 1.25, -bw * 0.02); ctx.quadraticCurveTo(-bw * 0.9, bw * 0.18, -bw * 0.55, 0); ctx.fillStyle = 'rgba(60,120,180,0.96)'; ctx.fill();
+        // eye
+        ctx.beginPath(); ctx.arc(bw * 0.12, -bh * 0.06, Math.max(6, this.size * 0.04), 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill();
+        ctx.beginPath(); ctx.arc(bw * 0.12, -bh * 0.06, Math.max(3, this.size * 0.02), 0, Math.PI * 2); ctx.fillStyle = 'rgba(22,44,66,0.95)'; ctx.fill();
+        // slight belly highlight
+        const g = ctx.createLinearGradient(-bw * 0.2, -bh * 0.2, bw * 0.6, bh * 0.2); g.addColorStop(0, 'rgba(255,255,255,0.06)'); g.addColorStop(1, 'rgba(255,255,255,0.02)'); ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(bw * 0.05, bh * 0.05, bw * 0.6, bh * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore(); ctx.globalAlpha = 1;
+    }
+    isOffScreen() { return (this.alpha <= 0); }
+}
+
+// game win state
+let gameWon = false;
+
+function triggerWin() {
+    if (gameWon) return;
+    gameWon = true;
+    appendLog('info', '[win] player reached final level — triggering whale celebration');
+    // clear existing creatures and trail for a clean stage
+    jellyfish.length = 0; particles.length = 0; spawnTimer = 0;
+
+    // show celebratory overlay and spawn the whale
+    try {
+        const winEl = document.createElement('div');
+        winEl.className = 'level-transition show win-overlay';
+        winEl.innerHTML = `<div class="lt-main">Congratulations — you win!</div><span class="lt-sub">Thanks for playing</span>`;
+        // play a friendly TTS if available
+        try {
+            if ('speechSynthesis' in window) {
+                const msg = new SpeechSynthesisUtterance('Congratulations - you win!');
+                window.speechSynthesis.cancel(); window.speechSynthesis.speak(msg);
+            }
+        } catch (e) {}
+
+        // add a Play Again button
+        const btn = document.createElement('button');
+        btn.className = 'retro-button'; btn.textContent = 'Play Again';
+        btn.style.display = 'block'; btn.style.margin = '14px auto 0 auto';
+        btn.addEventListener('click', () => { try { winEl.remove(); restartGame(); } catch (e) {} });
+        winEl.appendChild(btn);
+        document.body.appendChild(winEl);
+    } catch (e) {}
+
+    // play whale chime (if available) and push a big whale into the world so it gracefully floats across
+    try { playWhaleSfx(); } catch (e) {}
+    try { jellyfish.push(new Whale()); } catch (e) {}
+
+    // spawn confetti pieces across the top area
+    try {
+        const count = Math.min(140, Math.floor(60 + (canvas.clientWidth / 12)));
+        for (let i = 0; i < count; i++) {
+            const x = Math.random() * canvas.clientWidth;
+            const y = (canvas.clientHeight * 0.12) + Math.random() * (canvas.clientHeight * 0.08);
+            confetti.push(new Confetti(x, y));
+        }
+    } catch (e) {}
+}
+
+function restartGame() {
+    try {
+        gameWon = false;
+        level = 1; poppedCount = 0; spawnTimer = 0; jellyfish.length = 0; particles.length = 0;
+        speedFactor = 1.0; // reset pacing
+        // spawn initial creatures for level 1
+        for (let i = 0; i < 3; i++) spawnJelly();
+        updateHUD();
+        appendLog('info', '[game] restarted after win');
+        showToast('Restarting — good luck!', 1600, 'info');
+    } catch (e) {}
+}
+
 let jellyfish = [];
 let spawnTimer = 0;
 // spawnInterval controls how often new creatures are spawned (in animation frames)
@@ -1362,7 +1518,7 @@ function spawnJelly() {
         else if (level === 5) jellyfish.push(new Shark(side));
         else if (level === 6) jellyfish.push(new Eel(side));
         else if (level === 7) jellyfish.push(new Starfish(side));
-        else if (level === 8) jellyfish.push(new Goldfish(side));
+    else if (level === 8) jellyfish.push(new Lionfish(side));
         else if (level === 9) jellyfish.push(new Seaweed(side));
         else if (level === 10) jellyfish.push(new Clam(side));
         else jellyfish.push(new Manta(side));
@@ -1372,6 +1528,14 @@ function spawnJelly() {
 function goToNextLevel() {
     // show a centered transition banner, then actually advance level and respawn
     const nextLevel = level + 1;
+    // If nextLevel exceeds the max (10) — trigger win sequence instead
+    if (nextLevel > 10) {
+        createLevelTransition('Final!', () => {
+            try { triggerWin(); } catch (e) {}
+        });
+        return;
+    }
+
     createLevelTransition(`Level ${nextLevel}`, () => {
         try {
             level = nextLevel;
@@ -1386,6 +1550,30 @@ function goToNextLevel() {
             updateHUD();
         } catch (e) {}
     });
+}
+
+// Ensure level advances even if the transition callback fails to run
+function ensureAdvance() {
+    try {
+        const before = level;
+        goToNextLevel();
+        // fallback: if level hasn't changed after 1600ms, force the advance to avoid getting stuck
+        setTimeout(() => {
+            try {
+                if (level === before) {
+                    appendLog('error', `[fallback] transition callback did not complete for level ${before} — forcing advance`);
+                    const nextLevel = before + 1;
+                    level = nextLevel;
+                    // reset counters and spawn
+                    jellyfish.length = 0;
+                    poppedCount = 0;
+                    spawnTimer = 0;
+                    for (let i = 0; i < 3; i++) spawnJelly();
+                    updateHUD();
+                }
+            } catch (e) {}
+        }, 1600);
+    } catch (e) { try { goToNextLevel(); } catch (ex) {} }
 }
 
 // initial jellyfish
@@ -1433,6 +1621,15 @@ function animate() {
         if (particles[i].size <= 0.2) {
             particles.splice(i, 1);
             i--;
+        }
+    }
+
+    // draw confetti (win celebration) on top of particles
+    if (confetti && confetti.length) {
+        for (let i = 0; i < confetti.length; i++) {
+            const c = confetti[i];
+            try { c.update(); c.draw(); } catch (e) {}
+            if (c.isDead()) { confetti.splice(i, 1); i--; }
         }
     }
 
