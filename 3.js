@@ -296,6 +296,43 @@ try {
     }
 } catch (e) {}
 
+// Skip-to-level helper used by settings UI (safe: clears entities and jumps to chosen level)
+function skipToLevel(target) {
+    try {
+        const t = Number(target);
+        if (!t || t < 1 || t > 10) return;
+        inLevelTransition = true;
+        createLevelTransition(`Skipping to Level ${t}`, () => {
+            try {
+                level = t;
+                jellyfish.length = 0;
+                particles.length = 0;
+                confetti.length = 0;
+                poppedCount = 0;
+                spawnTimer = 0;
+                for (let i = 0; i < 3; i++) spawnJelly();
+                updateHUD();
+            } catch (e) {}
+            // clear transition guard after small delay so normal spawning resumes
+            setTimeout(() => { try { inLevelTransition = false; } catch (e) {} }, 600);
+        });
+    } catch (e) {}
+}
+
+// Hook skip UI (if present)
+try {
+    const skipBtn = document.getElementById('skipLevelBtn');
+    const skipSel = document.getElementById('skipLevelSelect');
+    if (skipBtn && skipSel) {
+        skipBtn.addEventListener('click', () => {
+            const v = skipSel.value;
+            if (!v) { showToast('Choose a level first', 1200, 'info'); return; }
+            skipToLevel(v);
+            try { appendLog('info', `[skip] user skipped to level ${v}`); } catch (e) {}
+        });
+    }
+} catch (e) {}
+
 // Reset settings to sensible defaults and update UI/localStorage
 function resetSettingsToDefaults() {
     const defaults = { movementThreshold: 2.5, requireDotThreshold: 0.2, globalCooldown: 220 };
