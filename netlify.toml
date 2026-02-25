@@ -1,0 +1,13 @@
+[build]
+  # Ensure Netlify publishes the repository root (where 2.html lives)
+  publish = "."
+
+[[redirects]]
+  from = "/"
+  to = "/2.html"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/2.html"
+  status = 200
