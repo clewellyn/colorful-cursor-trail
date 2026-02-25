@@ -600,6 +600,8 @@ let sfxEnabled = soundEnabled;
 let paused = false;
 let rafId = null;
 let _wasMusicPlaying = false;
+// prevent concurrent level transitions
+let inLevelTransition = false;
 
 // hint tooltip (show once)
 const hint = document.getElementById('hint');
@@ -1510,6 +1512,7 @@ const spawnInterval = 160; // in frames (~2.6s at 60fps)
 function spawnJelly() {
     const sides = ['left', 'right', 'top', 'bottom'];
     const side = sides[Math.floor(Math.random() * sides.length)];
+    if (inLevelTransition) return; // don't spawn while transitioning levels
     if (jellyfish.length < maxJelly) {
         if (level === 1) jellyfish.push(new Jellyfish(side));
         else if (level === 2) jellyfish.push(new Stingray(side));
@@ -1536,6 +1539,7 @@ function goToNextLevel() {
         return;
     }
 
+    inLevelTransition = true;
     createLevelTransition(`Level ${nextLevel}`, () => {
         try {
             level = nextLevel;
@@ -1548,6 +1552,7 @@ function goToNextLevel() {
             // spawn initial set for new level
             for (let i = 0; i < 3; i++) spawnJelly();
             updateHUD();
+            inLevelTransition = false;
         } catch (e) {}
     });
 }
@@ -1570,6 +1575,7 @@ function ensureAdvance() {
                     spawnTimer = 0;
                     for (let i = 0; i < 3; i++) spawnJelly();
                     updateHUD();
+                    inLevelTransition = false;
                 }
             } catch (e) {}
         }, 1600);
