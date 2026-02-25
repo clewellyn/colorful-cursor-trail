@@ -1432,12 +1432,38 @@ class Seaweed {
 // Clam (level 10) — sits on bottom, fairly stationary, opens a little
 class Clam {
     constructor(side='left'){
-        this.size = 12 + Math.random()*18; this.wFactor=1.1; this.hFactor=0.6; this.rotation=0; this.side=side; this.id=_jellyIdCounter++; this.phase=Math.random()*Math.PI*2; this.baseSpeed=0; this.age=0; this.maxAge=1200+Math.random()*1200; this.alpha=0.98; this.disappearing=false; this.hit=false; this.lastHit=0; this.spawnTime=Date.now();
-        this.x = Math.random()*canvas.clientWidth; this.y = canvas.clientHeight - (8 + Math.random()*30);
+        this.size = 12 + Math.random()*18;
+        this.wFactor = 1.1; this.hFactor = 0.6; this.rotation = 0; this.side = side; this.id = _jellyIdCounter++;
+        this.phase = Math.random()*Math.PI*2;
+        // give clams a small horizontal drift so they traverse like other creatures
+        this.baseSpeed = 0.04 + Math.random() * 0.08; // slow drift
+        this.age = 0; this.maxAge = 1200 + Math.random() * 1200; this.alpha = 0.98; this.disappearing = false; this.hit = false; this.lastHit = 0; this.spawnTime = Date.now();
+        // place clams near the bottom and choose a travel direction (left or right)
+        const startSide = Math.random() < 0.5 ? 'left' : 'right';
+        if (startSide === 'left') {
+            this.x = -this.size - Math.random() * 80;
+            this.dirX = 1;
+        } else {
+            this.x = canvas.clientWidth + this.size + Math.random() * 80;
+            this.dirX = -1;
+        }
+        this.y = canvas.clientHeight - (8 + Math.random()*30);
     }
-    update(){ this.phase += 0.01; if (this.disappearing){ this.alpha -= 0.01; } this.age++; }
-    draw(){ ctx.save(); ctx.globalAlpha=this.alpha; ctx.translate(this.x,this.y); const bw=this.size*this.wFactor; const bh=this.size*this.hFactor; const open = 4 + Math.sin(this.phase)*3; ctx.fillStyle='rgba(200,180,160,0.96)'; ctx.beginPath(); ctx.ellipse(0, -open*0.5, bw, bh, 0, Math.PI, 2*Math.PI); ctx.fill(); ctx.beginPath(); ctx.ellipse(0, open*0.5, bw, bh*0.9, 0, 0, Math.PI); ctx.fillStyle='rgba(180,160,140,0.96)'; ctx.fill(); ctx.restore(); ctx.globalAlpha=1; }
-    isOffScreen(){ return (this.age > this.maxAge); }
+    update(){
+        this.phase += 0.01;
+        // move slowly horizontally across the bottom
+        this.x += this.dirX * this.baseSpeed * speedFactor;
+        if (this.disappearing) { this.alpha -= 0.01; }
+        this.age++;
+    }
+    draw(){
+        ctx.save(); ctx.globalAlpha=this.alpha; ctx.translate(this.x,this.y);
+        const bw=this.size*this.wFactor; const bh=this.size*this.hFactor; const open = 4 + Math.sin(this.phase)*3;
+        ctx.fillStyle='rgba(200,180,160,0.96)'; ctx.beginPath(); ctx.ellipse(0, -open*0.5, bw, bh, 0, Math.PI, 2*Math.PI); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(0, open*0.5, bw, bh*0.9, 0, 0, Math.PI); ctx.fillStyle='rgba(180,160,140,0.96)'; ctx.fill();
+        ctx.restore(); ctx.globalAlpha=1;
+    }
+    isOffScreen(){ return (this.x < -this.size - 220 || this.x > canvas.clientWidth + this.size + 220 || this.age > this.maxAge); }
 }
 
 // Whale (end-game) — large floating celebratory whale that drifts across the screen
@@ -1651,6 +1677,13 @@ function animate() {
             spawnTimer = 0;
             spawnJelly();
         }
+        // safety guard: if poppedCount reached threshold but for some reason ensureAdvance wasn't invoked, trigger it now
+        try {
+            if (poppedCount >= popsToNextLevel && !inLevelTransition) {
+                appendLog('info', '[safety] animate loop detected level completion — advancing');
+                ensureAdvance();
+            }
+        } catch (e) {}
     } else {
         // ensure spawn timer doesn't grow while disabled
         spawnTimer = 0;
