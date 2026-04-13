@@ -1293,16 +1293,91 @@ class Eel {
         else if (side === 'right') { this.x = canvas.clientWidth + this.size + Math.random() * 160; this.y = Math.random() * (canvas.clientHeight * 0.9) + canvas.clientHeight * 0.05; this.dirX = -1; }
         else { this.x = Math.random() * canvas.clientWidth; this.y = Math.random() * canvas.clientHeight; this.dirX = (Math.random() - 0.5); this.dirY = (Math.random() - 0.5); }
         const h = Math.floor(Math.random() * 40) + 150; const sat = 40 + Math.floor(Math.random() * 30); const light = 34 + Math.floor(Math.random() * 18); this.color = `hsla(${h}, ${sat}%, ${light}%, 0.95)`;
-        this.swaySpeed = 0.02 + Math.random() * 0.03; this.swayAmp = 2 + Math.random() * 2; this.age = 0; this.maxAge = 500 + Math.random() * 900; this.alpha = 0.96; this.disappearing = false; this.hit = false; this.lastHit = 0; this.spawnTime = Date.now();
+    // make eels more snake-like: faster traveling wave, larger amplitude, more segments, skinnier body
+    this.wFactor = 0.16 + Math.random() * 0.28; // make overall body skinnier
+    this.swaySpeed = 0.03 + Math.random() * 0.08; // phase speed
+    this.swayAmp = 4 + Math.random() * 5; // stronger amplitude
+    this.wigFreq = 2.8 + Math.random() * 1.6; // higher frequency for tighter undulations
+    this.segments = 18 + Math.floor(Math.random() * 12); // more segments for smoother taper
+        this.age = 0; this.maxAge = 500 + Math.random() * 900; this.alpha = 0.96; this.disappearing = false; this.hit = false; this.lastHit = 0; this.spawnTime = Date.now();
     }
-    update() { this.phase += this.swaySpeed; const wig = Math.sin(this.phase * 2.2) * (1 + this.size * 0.03) * this.swayAmp; this.x += this.dirX * this.baseSpeed * speedFactor; this.y += wig * 0.2; if (this.disappearing) { this.alpha -= 0.02; this.size *= 0.994; } this.age++; }
+    update() {
+        // advance phase and apply a smoother, stronger vertical wiggle to the whole eel
+        this.phase += this.swaySpeed;
+        const wig = Math.sin(this.phase * this.wigFreq) * (1 + this.size * 0.03) * this.swayAmp;
+        this.x += this.dirX * this.baseSpeed * speedFactor;
+        this.y += wig * 0.2;
+        if (this.disappearing) { this.alpha -= 0.02; this.size *= 0.994; }
+        this.age++;
+    }
     draw() {
+        // draw eel as a long tapered snake: many thin overlapping ellipses with center stripe and occasional bands
         ctx.save(); ctx.globalAlpha = this.alpha; ctx.translate(this.x, this.y); ctx.rotate(this.rotation);
-        const bw = Math.max(8, this.size * this.wFactor); const bh = Math.max(3, this.size * this.hFactor);
-        // long rounded rectangle body
-        ctx.fillStyle = this.color; ctx.beginPath(); ctx.ellipse(0, 0, bw, bh, 0, 0, Math.PI * 2); ctx.fill();
-        // head taper
-        ctx.beginPath(); ctx.moveTo(bw, 0); ctx.quadraticCurveTo(bw + bw * 0.6, 0, bw + bw * 1.2, -4); ctx.lineTo(bw, 0); ctx.fillStyle = 'rgba(255,255,255,0.02)'; ctx.fill();
+        const bw = Math.max(6, this.size * this.wFactor);
+        const bh = Math.max(2.5, this.size * Math.max(0.28, this.hFactor * 0.5));
+        const length = Math.max(140, bw * 12 + this.size * 3); // make it visibly long
+
+        // backbone points head->tail
+        const pts = [];
+        for (let i = 0; i <= this.segments; i++) {
+            const t = i / this.segments;
+            const x = (0.5 - t) * length;
+            const localPhase = this.phase + t * Math.PI * 2.6;
+            // combine two sine components to make motion more organic (traveling wave + low freq sway)
+            const offset = (Math.sin(localPhase * this.wigFreq + t * 2.5) * 0.9 + Math.sin(localPhase * 0.6 + t * 5.0) * 0.4) * this.swayAmp * (1 - Math.pow(t, 1.2));
+            const y = offset;
+            pts.push({x, y, t});
+        }
+
+        // draw a thin darker centerline for stripe
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        ctx.beginPath();
+        for (let i = 0; i < pts.length; i++) {
+            const p = pts[i];
+            if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+        }
+        ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = Math.max(2, bw * 0.12); ctx.stroke();
+
+        // draw body segments (ellipses) with tapering widths
+        for (let i = 0; i < pts.length; i++) {
+            const p = pts[i];
+            const prev = pts[Math.max(0, i - 1)];
+            const next = pts[Math.min(pts.length - 1, i + 1)];
+            const dx = next.x - prev.x; const dy = next.y - prev.y;
+            const ang = Math.atan2(dy, dx);
+
+            // taper more aggressively for a snake-like profile
+            const headW = bw * 1.2;
+            const tailW = Math.max(0.8, bw * 0.12);
+            const segW = headW * (1 - Math.pow(p.t, 1.8)) + tailW * Math.pow(p.t, 1.8);
+            const segH = Math.max(1.2, segW * 0.36);
+
+            ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(ang);
+            // fill base color
+            ctx.beginPath(); ctx.fillStyle = this.color; ctx.ellipse(0, 0, segW, segH, 0, 0, Math.PI * 2); ctx.fill();
+
+            // occasional subtle banding to break the egg look
+            if (i % 3 === 0) {
+                ctx.beginPath(); ctx.fillStyle = 'rgba(0,0,0,0.06)'; ctx.ellipse(0, 0, segW * 0.86, segH * 0.86, 0, 0, Math.PI * 2); ctx.fill();
+            }
+
+            // slight underside shadow for depth
+            ctx.beginPath(); ctx.fillStyle = 'rgba(0,0,0,0.04)'; ctx.ellipse(-segW * 0.12, segH * 0.28, segW * 0.9, segH * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+        }
+
+        // head: make pointed by drawing an elongated ellipse and a small eye
+        const head = pts[0]; const headNext = pts[1] || head;
+        const hdx = headNext.x - head.x; const hdy = headNext.y - head.y; const hang = Math.atan2(hdy, hdx);
+        const headLen = Math.max(12, bw * 1.8);
+        ctx.save(); ctx.translate(head.x, head.y); ctx.rotate(hang);
+        ctx.beginPath(); ctx.fillStyle = this.color; ctx.ellipse(headLen * 0.18, 0, headLen, Math.max(3, bw * 0.9), 0, 0, Math.PI * 2); ctx.fill();
+        // eye
+        ctx.beginPath(); ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.arc(headLen * 0.42, -Math.max(1.4, bw * 0.16), Math.max(1.4, bw * 0.14), 0, Math.PI * 2); ctx.fill();
+        // glossy spot
+        ctx.beginPath(); ctx.fillStyle = 'rgba(255,255,255,0.09)'; ctx.ellipse(headLen * 0.22, -Math.max(1.8, bw * 0.14), Math.max(1, bw * 0.5), Math.max(0.8, bw * 0.4), 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+
         ctx.restore(); ctx.globalAlpha = 1;
     }
     isOffScreen() { return (this.x < -this.size - 300 || this.x > canvas.clientWidth + this.size + 300 || this.y < -this.size - 300 || this.y > canvas.clientHeight + this.size + 300 || this.age > this.maxAge); }
