@@ -39,6 +39,12 @@ let level = 1;
 let poppedCount = 0;
 const popsToNextLevel = 10;
 
+// helper: small, pleasant difficulty scaling per level
+function levelSpeedMultiplier(lv = level) {
+    // each level adds ~6% to creature base speed (level 1 => 1.0, level 10 => 1.54)
+    return 1 + ((lv - 1) * 0.06);
+}
+
 // Settings UI elements (initialized below) - optional if panel not present
 const sensitivityEl = document.getElementById('sensitivity');
 const sensitivityValEl = document.getElementById('sensitivityVal');
@@ -941,6 +947,16 @@ class Jellyfish {
             ctx.fill();
         }
 
+        // subtle rim highlight to give bell more volume
+        try {
+            const rim = ctx.createLinearGradient(-bw, -bh * 0.6, bw, bh * 0.6);
+            rim.addColorStop(0, 'rgba(255,255,255,0.02)');
+            rim.addColorStop(0.5, 'rgba(255,255,255,0)');
+            rim.addColorStop(1, 'rgba(255,255,255,0.02)');
+            ctx.fillStyle = rim;
+            ctx.beginPath(); ctx.ellipse(0, -bh * 0.08, bw * 0.98, bh * 0.9, 0, 0, Math.PI * 2); ctx.fill();
+        } catch (e) {}
+
         // draw bell (body) with variable width/height
         const grd = ctx.createRadialGradient(0, -bh * 0.18, Math.min(bw, bh) * 0.08, 0, 0, bodyR);
         grd.addColorStop(0, this.color);
@@ -979,7 +995,8 @@ class Jellyfish {
                 baseY + length
             );
             ctx.strokeStyle = this.color;
-            ctx.lineWidth = Math.max(0.6, this.size * 0.04);
+            // slightly bolder tentacles for visibility
+            ctx.lineWidth = Math.max(0.6, this.size * 0.05);
             ctx.lineCap = 'round';
             ctx.stroke();
         }
@@ -1055,8 +1072,8 @@ class Stingray {
 
     update() {
         this.phase += this.swaySpeed;
-        // smoother, more sinuous motion - apply base movement and a larger perpendicular undulation
-        const undulation = Math.sin(this.phase * (1.2 + this.wFactor * 0.2)) * (2 + this.size * 0.03) * this.swayAmp;
+    // smoother, more sinuous motion - apply base movement and a larger perpendicular undulation
+    const undulation = Math.sin(this.phase * (1.2 + this.wFactor * 0.2)) * (2.2 + this.size * 0.035) * this.swayAmp;
         this.x += this.dirX * this.baseSpeed * speedFactor + (Math.abs(this.dirY) > Math.abs(this.dirX) ? undulation * 0.2 : 0);
         this.y += this.dirY * this.baseSpeed * speedFactor + (Math.abs(this.dirX) > Math.abs(this.dirY) ? undulation * 0.6 : undulation * 0.35);
         // gentle size/alpha changes when disappearing
@@ -1224,8 +1241,9 @@ class Angler {
         // lure: glowing orb above body
         const lureX = 0; const lureY = -bh - (4 + Math.abs(Math.sin(this.phase) * 2));
         const lureR = Math.max(2, this.size * 0.28);
-        const lg = ctx.createRadialGradient(lureX, lureY, 0, lureX, lureY, lureR * 2.6);
-        lg.addColorStop(0, 'rgba(200,255,255,0.95)'); lg.addColorStop(0.6, 'rgba(140,220,255,0.3)'); lg.addColorStop(1, 'rgba(140,220,255,0)');
+    // brighter, pulsing lure for better visibility
+    const lg = ctx.createRadialGradient(lureX, lureY, 0, lureX, lureY, lureR * 3.2);
+    lg.addColorStop(0, 'rgba(220,255,255,0.98)'); lg.addColorStop(0.5, 'rgba(170,230,255,0.42)'); lg.addColorStop(1, 'rgba(170,230,255,0)');
         ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(lureX, lureY, lureR, 0, Math.PI * 2); ctx.fill();
         ctx.restore(); ctx.globalAlpha = 1;
     }
@@ -1277,8 +1295,8 @@ class Shark {
         // sleek body
         const g = ctx.createLinearGradient(-bw * 0.6, 0, bw * 0.6, 0); g.addColorStop(0, this.color); g.addColorStop(1, 'rgba(255,255,255,0.04)'); ctx.fillStyle = g;
         ctx.beginPath(); ctx.ellipse(0, 0, bw, bh, 0, 0, Math.PI * 2); ctx.fill();
-        // dorsal fin
-        ctx.beginPath(); ctx.moveTo(-bw * 0.06, -bh * 0.3); ctx.lineTo(0, -bh * 0.9); ctx.lineTo(bw * 0.16, -bh * 0.1); ctx.closePath(); ctx.fillStyle = 'rgba(0,0,0,0.08)'; ctx.fill();
+    // dorsal fin (slightly sharper)
+    ctx.beginPath(); ctx.moveTo(-bw * 0.06, -bh * 0.3); ctx.lineTo(0, -bh * 1.05); ctx.lineTo(bw * 0.18, -bh * 0.06); ctx.closePath(); ctx.fillStyle = 'rgba(0,0,0,0.09)'; ctx.fill();
         // subtle teeth hint when hovered
         ctx.restore(); ctx.globalAlpha = 1;
     }
@@ -1418,8 +1436,8 @@ class Starfish {
     draw() {
         ctx.save(); ctx.globalAlpha = Math.max(0.6, this.alpha); ctx.translate(this.x, this.y); ctx.rotate(this.rotation);
         const r = this.size;
-        // soft shadow to make starfish pop
-        ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = Math.max(4, r * 0.2);
+    // soft shadow to make starfish pop
+    ctx.shadowColor = 'rgba(0,0,0,0.42)'; ctx.shadowBlur = Math.max(5, r * 0.24);
         ctx.fillStyle = this.color;
         for (let i = 0; i < 5; i++) {
             const ang = i * Math.PI * 2 / 5;
@@ -1491,14 +1509,14 @@ class Seaweed {
         this.vx = (Math.random()-0.5) * 0.3;
         this.vy = (Math.random()-0.5) * 0.18;
     }
-    update() { this.phase += 0.006; this.x += this.vx * speedFactor; this.y += this.vy * speedFactor + Math.sin(this.phase*0.8)*0.4; // wrap around edges
+    update() { this.phase += 0.008; this.x += this.vx * speedFactor; this.y += this.vy * speedFactor + Math.sin(this.phase*0.95)*0.46; // wrap around edges
         if (this.x < -this.size) this.x = canvas.clientWidth + this.size; if (this.x > canvas.clientWidth + this.size) this.x = -this.size; if (this.y < -this.size) this.y = canvas.clientHeight + this.size; if (this.y > canvas.clientHeight + this.size) this.y = -this.size;
         if (this.disappearing) { this.alpha -= 0.01; } this.age++; }
     draw() { ctx.save(); ctx.globalAlpha = this.alpha; ctx.translate(this.x, this.y); ctx.rotate(this.rotation); const sway = Math.sin(this.phase) * (6 + this.size*0.02);
         // draw several tall fronds for visibility
         for (let i=0;i<4;i++){
             const off = (i-1.5) * (this.size*0.18);
-            ctx.beginPath(); ctx.moveTo(off, 0); ctx.quadraticCurveTo(off + sway*0.08, -this.size*0.36, off + sway*0.4, -this.size*1.05); ctx.quadraticCurveTo(off + sway*0.6, -this.size*1.25, off, -this.size*1.6); ctx.strokeStyle = `rgba(40,160,80,0.9)`; ctx.lineWidth = Math.max(2, this.size*0.06); ctx.stroke(); ctx.fillStyle = `rgba(30,140,60,0.14)`; ctx.fill();
+            ctx.beginPath(); ctx.moveTo(off, 0); ctx.quadraticCurveTo(off + sway*0.12, -this.size*0.36, off + sway*0.46, -this.size*1.05); ctx.quadraticCurveTo(off + sway*0.66, -this.size*1.25, off, -this.size*1.6); ctx.strokeStyle = `rgba(34,180,90,0.95)`; ctx.lineWidth = Math.max(2, this.size*0.06); ctx.stroke(); ctx.fillStyle = `rgba(26,160,68,0.16)`; ctx.fill();
         }
         ctx.restore(); ctx.globalAlpha=1; }
     isOffScreen() { return (this.age > this.maxAge); }
@@ -1706,25 +1724,44 @@ function spawnJelly() {
     const side = sides[Math.floor(Math.random() * sides.length)];
     if (inLevelTransition) return; // don't spawn while transitioning levels
     if (jellyfish.length < maxJelly) {
-        if (level === 1) jellyfish.push(new Jellyfish(side));
-        else if (level === 2) jellyfish.push(new Stingray(side));
-        else if (level === 3) jellyfish.push(new Angler(side));
-        else if (level === 4) jellyfish.push(new Manta(side));
-        else if (level === 5) jellyfish.push(new Shark(side));
-        else if (level === 6) jellyfish.push(new Eel(side));
-        else if (level === 7) jellyfish.push(new Starfish(side));
-    else if (level === 8) jellyfish.push(new Lionfish(side));
-        else if (level === 9) jellyfish.push(new Seaweed(side));
+        let ent = null;
+        if (level === 1) ent = new Jellyfish(side);
+        else if (level === 2) ent = new Stingray(side);
+        else if (level === 3) ent = new Angler(side);
+        else if (level === 4) ent = new Manta(side);
+        else if (level === 5) ent = new Shark(side);
+        else if (level === 6) ent = new Eel(side);
+        else if (level === 7) ent = new Starfish(side);
+        else if (level === 8) ent = new Lionfish(side);
+        else if (level === 9) ent = new Seaweed(side);
         else if (level === 10) {
             // Level 10: spawn clams more often and sometimes spawn 2 at once for liveliness.
             // Choose independent sides for each spawned clam so they can appear from different edges.
             const spawnCount = 1 + (Math.random() < 0.45 ? 1 : 0);
             for (let s = 0; s < spawnCount; s++) {
                 const sideChoice = sides[Math.floor(Math.random() * sides.length)];
-                jellyfish.push(new Clam(sideChoice));
+                const clam = new Clam(sideChoice);
+                // scale clam movement slightly with level
+                const m = levelSpeedMultiplier(level);
+                if (clam.baseSpeed) clam.baseSpeed *= m;
+                if (clam.swaySpeed) clam.swaySpeed *= Math.max(1, m * 0.9);
+                if (clam.swayAmp) clam.swayAmp *= Math.max(1, m * 0.9);
+                jellyfish.push(clam);
             }
+            return; // already pushed clams
+        } else {
+            // default: instantiated in ent
         }
-        else jellyfish.push(new Manta(side));
+        if (ent) {
+            // scale movement parameters gently by level to increase difficulty
+            const m = levelSpeedMultiplier(level);
+            try {
+                if (ent.baseSpeed) ent.baseSpeed *= m;
+                if (ent.swaySpeed) ent.swaySpeed *= Math.max(1, m * 0.9);
+                if (ent.swayAmp) ent.swayAmp *= Math.max(1, m * 0.9);
+            } catch (e) {}
+            jellyfish.push(ent);
+        }
     }
 }
 
@@ -1788,8 +1825,8 @@ if (jellyEnabled) {
 }
 
 function animate() {
-    // slowly increase global speed factor
-    speedFactor += speedRampPerFrame;
+    // slowly increase global speed factor; scale ramp slightly with level so later levels accelerate faster
+    speedFactor += speedRampPerFrame * levelSpeedMultiplier(level);
 
     // translucent background for trailing effect (use CSS pixel dims so fill covers visible canvas)
     ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
@@ -1808,9 +1845,10 @@ function animate() {
             }
         }
 
-        // spawn timer (use a faster effective interval for level 10 so clams appear more frequently)
+        // spawn timer: slightly decrease interval as level increases so creatures appear more frequently
         spawnTimer++;
-        const effectiveSpawnInterval = (level === 10) ? Math.max(36, Math.floor(spawnInterval * 0.45)) : spawnInterval;
+        const levelSpawnScale = 1 - Math.min(0.45, (level - 1) * 0.04); // up to ~44% faster spawn by level 10
+        const effectiveSpawnInterval = (level === 10) ? Math.max(36, Math.floor(spawnInterval * 0.45)) : Math.max(28, Math.floor(spawnInterval * levelSpawnScale));
         if (spawnTimer > effectiveSpawnInterval) {
             spawnTimer = 0;
             spawnJelly();
